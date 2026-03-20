@@ -7,6 +7,13 @@ local ADDON_NAME = "UIToolbox"
 local DEFAULTS = {
     trackerCollapse = {
         enabled = true,
+        instanceTypes = {
+            party    = true,  -- Dungeons
+            raid     = true,  -- Raids
+            pvp      = true,  -- Battlegrounds
+            arena    = true,  -- Arenas
+            scenario = true,  -- Scenarios
+        },
         sections = {
             campaign    = true,
             quests      = true,

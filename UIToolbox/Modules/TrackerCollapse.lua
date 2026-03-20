@@ -15,15 +15,6 @@ local SECTIONS = {
     { key = "worldQuests", frameName = "WorldQuestObjectiveTracker"    },
 }
 
--- Instance types that trigger collapse.
-local INSTANCE_TYPES = {
-    party    = true,
-    raid     = true,
-    pvp      = true,
-    arena    = true,
-    scenario = true,
-}
-
 -- Snapshot of collapse states taken just before entering an instance,
 -- keyed by section key. Used to restore state on exit.
 local preInstanceState = {}
@@ -39,7 +30,7 @@ function TrackerCollapse:OnZoneChanged(inInstance, instanceType)
 
     if not db.enabled then return end
 
-    local enteringInstance = inInstance and INSTANCE_TYPES[instanceType]
+    local enteringInstance = inInstance and db.instanceTypes[instanceType]
 
     if enteringInstance and not wasInInstance then
         dbg("TrackerCollapse: entering instance (" .. (instanceType or "?") .. "), collapsing sections.")

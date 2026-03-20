@@ -34,9 +34,59 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
     Settings.CreateCheckbox(
         category,
         collapseEnabledSetting,
-        "Automatically collapses the Campaign, Quests, and World Quests tracker sections " ..
-        "when entering any instance. Restores them when you leave."
+        "Automatically collapses objective tracker sections when entering an instance. " ..
+        "Restores them when you leave."
     )
+
+    -- Collapse in (instance types) ---------------
+    local headerInstanceTypes = CreateSettingsListSectionHeaderInitializer("Collapse in")
+    Settings.RegisterInitializer(category, headerInstanceTypes)
+
+    local instanceTypeSettings = {
+        { key = "party",    label = "Dungeons"       },
+        { key = "raid",     label = "Raids"          },
+        { key = "pvp",      label = "Battlegrounds"  },
+        { key = "arena",    label = "Arenas"         },
+        { key = "scenario", label = "Scenarios"      },
+    }
+
+    for _, entry in ipairs(instanceTypeSettings) do
+        local key = entry.key
+        local setting = Settings.RegisterProxySetting(
+            category,
+            "UITOOLBOX_TRACKER_COLLAPSE_INSTANCE_" .. strupper(key),
+            Settings.VarType.Boolean,
+            entry.label,
+            true,
+            function() return UIToolbox.db.trackerCollapse.instanceTypes[key] end,
+            function(value) UIToolbox.db.trackerCollapse.instanceTypes[key] = value end
+        )
+        Settings.CreateCheckbox(category, setting, nil)
+    end
+
+    -- Collapse sections --------------------------
+    local headerSections = CreateSettingsListSectionHeaderInitializer("Collapse sections")
+    Settings.RegisterInitializer(category, headerSections)
+
+    local sectionSettings = {
+        { key = "campaign",    label = "Campaign Quests" },
+        { key = "quests",     label = "Regular Quests"  },
+        { key = "worldQuests", label = "World Quests"   },
+    }
+
+    for _, entry in ipairs(sectionSettings) do
+        local key = entry.key
+        local setting = Settings.RegisterProxySetting(
+            category,
+            "UITOOLBOX_TRACKER_COLLAPSE_SECTION_" .. strupper(key),
+            Settings.VarType.Boolean,
+            entry.label,
+            true,
+            function() return UIToolbox.db.trackerCollapse.sections[key] end,
+            function(value) UIToolbox.db.trackerCollapse.sections[key] = value end
+        )
+        Settings.CreateCheckbox(category, setting, nil)
+    end
 
     -- ----------------------------------------------------------------
     -- Damage Meter — Free Drag
