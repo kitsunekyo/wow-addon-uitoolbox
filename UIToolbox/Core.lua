@@ -6,12 +6,15 @@ local ADDON_NAME = "UIToolbox"
 -- Default settings. Merged with SavedVariables on load so new keys are always present.
 local DEFAULTS = {
     trackerCollapse = {
-        enabled = false,    -- opt-in via Settings panel
+        enabled = true,
         sections = {
             campaign    = true,
             quests      = true,
             worldQuests = true,
         },
+    },
+    damageMeterDrag = {
+        enabled = false,  -- opt-in, off by default
     },
 }
 
@@ -34,21 +37,17 @@ end
 -- Addon frame and event dispatch
 -- ============================================================
 
--- Anonymous frame: no global frame name so WoW's taint system cannot
--- misattribute protected calls made by Blizzard code to UIToolbox.
--- We expose the addon object via _G separately as a plain reference.
-local UIToolbox = CreateFrame("Frame")
+local UIToolbox = CreateFrame("Frame", ADDON_NAME)
 _G[ADDON_NAME] = UIToolbox
 
 UIToolbox.modules = {}
 
 -- Register a module to receive OnZoneChanged calls.
--- module must have an OnZoneChanged(inInstance, instanceType) method.
 function UIToolbox:RegisterModule(module)
     table.insert(self.modules, module)
 end
 
--- Internal event handler -- dispatches to named methods on self.
+-- Internal event handler — dispatches to named methods on self.
 UIToolbox:SetScript("OnEvent", function(self, event, ...)
     if self[event] then
         self[event](self, ...)
@@ -56,6 +55,7 @@ UIToolbox:SetScript("OnEvent", function(self, event, ...)
 end)
 
 UIToolbox:RegisterEvent("ADDON_LOADED")
+UIToolbox:RegisterEvent("PLAYER_ENTERING_WORLD")
 
 function UIToolbox:ADDON_LOADED(addonName)
     if addonName ~= ADDON_NAME then return end
@@ -66,7 +66,6 @@ function UIToolbox:ADDON_LOADED(addonName)
     self.db = UIToolboxDB
 
     self:UnregisterEvent("ADDON_LOADED")
-    self:RegisterEvent("PLAYER_ENTERING_WORLD")
 end
 
 function UIToolbox:PLAYER_ENTERING_WORLD()

@@ -8,10 +8,11 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
     local category = Settings.RegisterVerticalLayoutCategory("UIToolbox")
 
     -- ----------------------------------------------------------------
-    -- Tracker Collapse — enable/disable checkbox
-    -- UIToolbox.db is referenced directly (not captured as an upvalue)
-    -- so it is always resolved at call time, after ADDON_LOADED has run.
+    -- Objective Tracker — Auto-Collapse
     -- ----------------------------------------------------------------
+    local headerTracker = CreateSettingsListSectionHeaderInitializer("Objective Tracker")
+    Settings.RegisterInitializer(category, headerTracker)
+
     local function GetTrackerCollapseEnabled()
         return UIToolbox.db.trackerCollapse.enabled
     end
@@ -24,7 +25,7 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         category,
         "UITOOLBOX_TRACKER_COLLAPSE_ENABLED",
         Settings.VarType.Boolean,
-        "Auto-collapse tracker on instance entry",
+        "Auto-collapse in instances",
         false,
         GetTrackerCollapseEnabled,
         SetTrackerCollapseEnabled
@@ -35,6 +36,42 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         collapseEnabledSetting,
         "Automatically collapses the Campaign, Quests, and World Quests tracker sections " ..
         "when entering any instance. Restores them when you leave."
+    )
+
+    -- ----------------------------------------------------------------
+    -- Damage Meter — Free Drag
+    -- ----------------------------------------------------------------
+    local headerDamageMeter = CreateSettingsListSectionHeaderInitializer("Damage Meter")
+    Settings.RegisterInitializer(category, headerDamageMeter)
+
+    local function GetDamageMeterDragEnabled()
+        return UIToolbox.db.damageMeterDrag.enabled
+    end
+
+    local function SetDamageMeterDragEnabled(value)
+        UIToolbox.db.damageMeterDrag.enabled = value
+        if value then
+            UIToolbox.DamageMeterDrag:Enable()
+        else
+            UIToolbox.DamageMeterDrag:Disable()
+        end
+    end
+
+    local damageMeterDragSetting = Settings.RegisterProxySetting(
+        category,
+        "UITOOLBOX_DAMAGE_METER_DRAG_ENABLED",
+        Settings.VarType.Boolean,
+        "Free drag",
+        false,
+        GetDamageMeterDragEnabled,
+        SetDamageMeterDragEnabled
+    )
+
+    Settings.CreateCheckbox(
+        category,
+        damageMeterDragSetting,
+        "Allows dragging the Damage Meter window freely at any time, instead of only " ..
+        "through Edit Mode. Position is saved between sessions."
     )
 
     -- Always the last call -- registers the category into the Settings panel.
