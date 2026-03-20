@@ -34,7 +34,10 @@ end
 -- Addon frame and event dispatch
 -- ============================================================
 
-local UIToolbox = CreateFrame("Frame", ADDON_NAME)
+-- Anonymous frame: no global frame name so WoW's taint system cannot
+-- misattribute protected calls made by Blizzard code to UIToolbox.
+-- We expose the addon object via _G separately as a plain reference.
+local UIToolbox = CreateFrame("Frame")
 _G[ADDON_NAME] = UIToolbox
 
 UIToolbox.modules = {}
