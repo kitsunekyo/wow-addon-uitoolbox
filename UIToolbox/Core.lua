@@ -81,13 +81,24 @@ function UIToolbox:ADDON_LOADED(addonName)
 
     self:UnregisterEvent("ADDON_LOADED")
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
+    self:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 end
 
-function UIToolbox:PLAYER_ENTERING_WORLD()
+local function DispatchZoneChanged()
     local inInstance, instanceType = IsInInstance()
-    for _, module in ipairs(self.modules) do
+    for _, module in ipairs(UIToolbox.modules) do
         if module.OnZoneChanged then
             module:OnZoneChanged(inInstance, instanceType)
         end
     end
+end
+
+-- Fires on loading-screen transitions (dungeons, raids, teleports).
+function UIToolbox:PLAYER_ENTERING_WORLD()
+    DispatchZoneChanged()
+end
+
+-- Fires on seamless zone transitions (delve entrances, subzones).
+function UIToolbox:ZONE_CHANGED_NEW_AREA()
+    DispatchZoneChanged()
 end
