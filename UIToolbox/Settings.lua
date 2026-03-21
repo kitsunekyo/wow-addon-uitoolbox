@@ -52,14 +52,20 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
 
     for _, entry in ipairs(instanceTypeSettings) do
         local key = entry.key
+        local function MakeGetter(k)
+            return function() return UIToolbox.db.trackerCollapse.instanceTypes[k] end
+        end
+        local function MakeSetter(k)
+            return function(value) UIToolbox.db.trackerCollapse.instanceTypes[k] = value end
+        end
         local setting = Settings.RegisterProxySetting(
             category,
             "UITOOLBOX_TRACKER_COLLAPSE_INSTANCE_" .. strupper(key),
             Settings.VarType.Boolean,
             entry.label,
             true,
-            function() return UIToolbox.db.trackerCollapse.instanceTypes[key] end,
-            function(value) UIToolbox.db.trackerCollapse.instanceTypes[key] = value end
+            MakeGetter(key),
+            MakeSetter(key)
         )
         Settings.CreateCheckbox(category, setting, nil)
     end
@@ -76,14 +82,20 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
 
     for _, entry in ipairs(sectionSettings) do
         local key = entry.key
+        local function MakeGetter(k)
+            return function() return UIToolbox.db.trackerCollapse.sections[k] end
+        end
+        local function MakeSetter(k)
+            return function(value) UIToolbox.db.trackerCollapse.sections[k] = value end
+        end
         local setting = Settings.RegisterProxySetting(
             category,
             "UITOOLBOX_TRACKER_COLLAPSE_SECTION_" .. strupper(key),
             Settings.VarType.Boolean,
             entry.label,
             true,
-            function() return UIToolbox.db.trackerCollapse.sections[key] end,
-            function(value) UIToolbox.db.trackerCollapse.sections[key] = value end
+            MakeGetter(key),
+            MakeSetter(key)
         )
         Settings.CreateCheckbox(category, setting, nil)
     end

@@ -63,6 +63,7 @@ end)
 
 UIToolbox:RegisterEvent("ADDON_LOADED")
 UIToolbox:RegisterEvent("PLAYER_ENTERING_WORLD")
+UIToolbox:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 
 function UIToolbox:ADDON_LOADED(addonName)
     if addonName ~= ADDON_NAME then return end
@@ -76,6 +77,15 @@ function UIToolbox:ADDON_LOADED(addonName)
 end
 
 function UIToolbox:PLAYER_ENTERING_WORLD()
+    local inInstance, instanceType = IsInInstance()
+    for _, module in ipairs(self.modules) do
+        if module.OnZoneChanged then
+            module:OnZoneChanged(inInstance, instanceType)
+        end
+    end
+end
+
+function UIToolbox:ZONE_CHANGED_NEW_AREA()
     local inInstance, instanceType = IsInInstance()
     for _, module in ipairs(self.modules) do
         if module.OnZoneChanged then
