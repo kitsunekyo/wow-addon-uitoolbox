@@ -62,30 +62,28 @@ UIToolbox:SetScript("OnEvent", function(self, event, ...)
 end)
 
 UIToolbox:RegisterEvent("ADDON_LOADED")
-UIToolbox:RegisterEvent("PLAYER_ENTERING_WORLD")
-UIToolbox:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 
 function UIToolbox:ADDON_LOADED(addonName)
     if addonName ~= ADDON_NAME then return end
 
     -- Initialize SavedVariables and apply defaults for any missing keys.
     UIToolboxDB = UIToolboxDB or {}
+
+    -- Migration: DBs created before instanceTypes was added have a stale
+    -- enabled=false. Wipe just the trackerCollapse block so defaults re-apply.
+    local tc = UIToolboxDB.trackerCollapse
+    if tc and tc.instanceTypes == nil then
+        UIToolboxDB.trackerCollapse = nil
+    end
+
     ApplyDefaults(UIToolboxDB, DEFAULTS)
     self.db = UIToolboxDB
 
     self:UnregisterEvent("ADDON_LOADED")
+    self:RegisterEvent("PLAYER_ENTERING_WORLD")
 end
 
 function UIToolbox:PLAYER_ENTERING_WORLD()
-    local inInstance, instanceType = IsInInstance()
-    for _, module in ipairs(self.modules) do
-        if module.OnZoneChanged then
-            module:OnZoneChanged(inInstance, instanceType)
-        end
-    end
-end
-
-function UIToolbox:ZONE_CHANGED_NEW_AREA()
     local inInstance, instanceType = IsInInstance()
     for _, module in ipairs(self.modules) do
         if module.OnZoneChanged then
