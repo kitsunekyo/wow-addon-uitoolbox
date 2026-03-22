@@ -100,42 +100,6 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         Settings.CreateCheckbox(category, setting, nil)
     end
 
-    -- ----------------------------------------------------------------
-    -- Damage Meter — Free Drag
-    -- ----------------------------------------------------------------
-    local headerDamageMeter = CreateSettingsListSectionHeaderInitializer("Damage Meter")
-    Settings.RegisterInitializer(category, headerDamageMeter)
-
-    local function GetDamageMeterDragEnabled()
-        return UIToolbox.db.damageMeterDrag.enabled
-    end
-
-    local function SetDamageMeterDragEnabled(value)
-        UIToolbox.db.damageMeterDrag.enabled = value
-        if value then
-            UIToolbox.DamageMeterDrag:Enable()
-        else
-            UIToolbox.DamageMeterDrag:Disable()
-        end
-    end
-
-    local damageMeterDragSetting = Settings.RegisterProxySetting(
-        category,
-        "UITOOLBOX_DAMAGE_METER_DRAG_ENABLED",
-        Settings.VarType.Boolean,
-        "Free drag",
-        false,
-        GetDamageMeterDragEnabled,
-        SetDamageMeterDragEnabled
-    )
-
-    Settings.CreateCheckbox(
-        category,
-        damageMeterDragSetting,
-        "Allows dragging the Damage Meter window freely at any time, instead of only " ..
-        "through Edit Mode. Position is saved between sessions."
-    )
-
     -- Always the last call -- registers the category into the Settings panel.
     Settings.RegisterAddOnCategory(category)
 
