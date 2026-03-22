@@ -2,8 +2,8 @@
 -- Modules/DamageMeterButton.lua
 --
 -- Injects a custom button into the Blizzard damage meter header, positioned
--- to the left of the existing settings (gear) button. Clicking it toggles the
--- free-drag feature from DamageMeterDrag.
+-- to the left of the existing settings (gear) button. Clicking it directly
+-- toggles the free-drag feature from DamageMeterDrag.
 
 local DamageMeterButton = {}
 UIToolbox.DamageMeterButton = DamageMeterButton
@@ -40,30 +40,29 @@ local function CreateHeaderButton(sessionWindow)
 	local sessionDropdown = sessionWindow.SessionDropdown
 	if not sessionDropdown then return end
 
-	-- Use the same template as the gear button for identical visual behaviour.
-	local btn = CreateFrame("DropdownButton", BUTTON_NAME, sessionWindow, "DamageMeterSettingsDropdownButtonTemplate")
+	-- Plain Button — we cannot use DamageMeterSettingsDropdownButtonTemplate because
+	-- that template is a DropdownButton whose mixin calls :IsMenuOpen(), which does
+	-- not exist on a regular Button. Instead we replicate the visuals manually using
+	-- the same atlas names the template defines.
+	local btn = CreateFrame("Button", BUTTON_NAME, sessionWindow)
 	btn:SetSize(BUTTON_SIZE, BUTTON_SIZE)
 	btn:SetPoint("RIGHT", sessionDropdown, "LEFT", -4, -3)
 
-	-- Single menu item that toggles free drag on/off.
-	btn:SetupMenu(function(_, rootDescription)
-		rootDescription:SetTag("MENU_UITOOLBOX_HEADER_BUTTON")
+	local icon = btn:CreateTexture(nil, "ARTWORK")
+	icon:SetAllPoints(btn)
+	icon:SetAtlas("common-dropdown-a-button-settings-shadowless", true)
+	btn.Icon = icon
 
-		local db = UIToolbox.db.damageMeterDrag
-		local label = db.enabled and "Disable Free Drag" or "Enable Free Drag"
-
-		rootDescription:CreateButton(label, function()
-			db.enabled = not db.enabled
-			if db.enabled then
-				UIToolbox.DamageMeterDrag:Enable()
-			else
-				UIToolbox.DamageMeterDrag:Disable()
-			end
-			RefreshButtonVisual()
-		end)
+	btn:SetScript("OnMouseDown", function(self)
+		if self:IsEnabled() then
+			icon:SetAtlas("common-dropdown-a-button-settings-pressed-shadowless", true)
+		end
 	end)
-
+	btn:SetScript("OnMouseUp", function()
+		icon:SetAtlas("common-dropdown-a-button-settings-shadowless", true)
+	end)
 	btn:SetScript("OnEnter", function(self)
+		icon:SetAtlas("common-dropdown-a-button-settings-hover-shadowless", true)
 		local enabled = UIToolbox.db.damageMeterDrag.enabled
 		GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
 		GameTooltip:SetText("UIToolbox: Free Drag", 1, 1, 1)
@@ -71,7 +70,20 @@ local function CreateHeaderButton(sessionWindow)
 		GameTooltip:Show()
 	end)
 	btn:SetScript("OnLeave", function()
+		icon:SetAtlas("common-dropdown-a-button-settings-shadowless", true)
 		GameTooltip:Hide()
+	end)
+
+	-- Toggle free drag on/off when clicked.
+	btn:SetScript("OnClick", function()
+		local db = UIToolbox.db.damageMeterDrag
+		db.enabled = not db.enabled
+		if db.enabled then
+			UIToolbox.DamageMeterDrag:Enable()
+		else
+			UIToolbox.DamageMeterDrag:Disable()
+		end
+		RefreshButtonVisual()
 	end)
 
 	activeButton = btn
