@@ -9,6 +9,6 @@
 
 Core.lua
 Settings.lua
-Modules\TrackerCollapse.lua
-Modules\DamageMeterDrag.lua
-Modules\DamageMeterButton.lua
+modules\ObjectivesTracker\features\AutoCollapse\AutoCollapse.lua
+modules\DamageMeter\features\FreeMove\FreeMove.lua
+modules\DamageMeter\features\QuickClear\QuickClear.lua

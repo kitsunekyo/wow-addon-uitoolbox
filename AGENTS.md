@@ -21,29 +21,34 @@ plugin settings are well integrated into the addons options menu.
 
 ## Development Environment
 
-### Where to edit files
+### MANDATORY: Where to edit files
 
-**Only ever edit files inside this workspace folder:**
+> **All development MUST be done inside the WSL2 Arch Linux workspace.**
+> **NEVER directly edit or write files anywhere under `/mnt/c/...` on the Windows host.**
+
+The canonical source of truth is the WSL2 workspace:
 ```
-\\wsl.localhost\archlinux\home\aspieslechner\agent-workspaces\wow-addon\
+/home/aspieslechner/agent-workspaces/wow-addon/   (WSL path)
+\\wsl.localhost\archlinux\home\aspieslechner\agent-workspaces\wow-addon\   (UNC path — same location)
 ```
 
-Do NOT edit files directly in the WoW installation. That folder is a deploy target only:
+The WoW installation directory is a **deploy target only** — never touch it directly:
 ```
-C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\UIToolbox\   ← DO NOT TOUCH
+C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\UIToolbox\   ← DEPLOY TARGET — DO NOT TOUCH
+/mnt/c/Program Files (x86)/World of Warcraft/_retail_/Interface/AddOns/UIToolbox/   ← SAME PATH — DO NOT TOUCH
 ```
 
-### Syncing to WoW
+### MANDATORY: Deploying changes
 
-After making changes, sync the addon to the WoW installation by running `sync.sh` from WSL:
+> **After every completed change, run `sync.sh` to deploy the addon to the WoW installation.**
 
 ```
 wsl -d archlinux -e bash -c "bash /home/aspieslechner/agent-workspaces/wow-addon/sync.sh"
 ```
 
-The script copies `UIToolbox/` into the WoW AddOns folder using `cp` (with `rsync` as a preferred fallback if available).
-
-After syncing, the user must type `/reload` in WoW to pick up the changes.
+The script wipes the destination directory and copies everything fresh from the workspace,
+guaranteeing no stale files survive. After syncing, the user must type `/reload` in WoW
+to pick up the changes.
 
 ### Writing files
 
@@ -59,6 +64,13 @@ via WSL, because the fish shell intercepts heredocs and multiline `-c` strings:
 # Then execute from WSL:
 wsl -d archlinux -e bash -c "python3 /mnt/c/temp/myscript.py"
 ```
+
+## Knowledge Base
+
+Reference documents accumulated during development. Consult these before researching topics they cover.
+
+- [Attaching Buttons to Blizzard Frames](knowledge/attaching-buttons-to-blizzard-frames.md) — how to inject custom buttons into Blizzard frames, atlas texture usage, accessing frame children, idempotency, and hooking late-created windows
+- [Edit Mode and Injected Buttons](knowledge/edit-mode-and-injected-buttons.md) — how Edit Mode dragging affects injected buttons, primary vs secondary damage meter windows, `ApplyLayoutToFrame` hook pattern
 
 ## Resources
 

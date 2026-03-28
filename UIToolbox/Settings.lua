@@ -13,24 +13,15 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
     local headerTracker = CreateSettingsListSectionHeaderInitializer("Objective Tracker")
     Settings.RegisterInitializer(category, headerTracker)
 
-    local function GetTrackerCollapseEnabled()
-        return UIToolbox.db.trackerCollapse.enabled
-    end
-
-    local function SetTrackerCollapseEnabled(value)
-        UIToolbox.db.trackerCollapse.enabled = value
-    end
-
     local collapseEnabledSetting = Settings.RegisterProxySetting(
         category,
-        "UITOOLBOX_TRACKER_COLLAPSE_ENABLED",
+        "UITOOLBOX_AUTO_COLLAPSE_ENABLED",
         Settings.VarType.Boolean,
         "Auto-collapse in instances",
         false,
-        GetTrackerCollapseEnabled,
-        SetTrackerCollapseEnabled
+        function() return UIToolbox.db.autoCollapse.enabled end,
+        function(value) UIToolbox.db.autoCollapse.enabled = value end
     )
-
     Settings.CreateCheckbox(
         category,
         collapseEnabledSetting,
@@ -38,67 +29,58 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         "Restores them when you leave."
     )
 
-    -- Collapse in (instance types) ---------------
-    local headerInstanceTypes = CreateSettingsListSectionHeaderInitializer("Collapse in")
-    Settings.RegisterInitializer(category, headerInstanceTypes)
-
-    local instanceTypeSettings = {
-        { key = "party",    label = "Dungeons"       },
-        { key = "raid",     label = "Raids"          },
-        { key = "pvp",      label = "Battlegrounds"  },
-        { key = "arena",    label = "Arenas"         },
-        { key = "scenario", label = "Scenarios"      },
-    }
-
-    for _, entry in ipairs(instanceTypeSettings) do
-        local key = entry.key
-        local function MakeGetter(k)
-            return function() return UIToolbox.db.trackerCollapse.instanceTypes[k] end
-        end
-        local function MakeSetter(k)
-            return function(value) UIToolbox.db.trackerCollapse.instanceTypes[k] = value end
-        end
-        local setting = Settings.RegisterProxySetting(
-            category,
-            "UITOOLBOX_TRACKER_COLLAPSE_INSTANCE_" .. strupper(key),
-            Settings.VarType.Boolean,
-            entry.label,
-            true,
-            MakeGetter(key),
-            MakeSetter(key)
-        )
-        Settings.CreateCheckbox(category, setting, nil)
-    end
-
-    -- Collapse sections --------------------------
+    -- Collapse sections (campaign / quests / worldQuests) ------------
     local headerSections = CreateSettingsListSectionHeaderInitializer("Collapse sections")
     Settings.RegisterInitializer(category, headerSections)
 
     local sectionSettings = {
         { key = "campaign",    label = "Campaign Quests" },
-        { key = "quests",     label = "Regular Quests"  },
-        { key = "worldQuests", label = "World Quests"   },
+        { key = "quests",      label = "Regular Quests"  },
+        { key = "worldQuests", label = "World Quests"    },
     }
 
     for _, entry in ipairs(sectionSettings) do
         local key = entry.key
-        local function MakeGetter(k)
-            return function() return UIToolbox.db.trackerCollapse.sections[k] end
-        end
-        local function MakeSetter(k)
-            return function(value) UIToolbox.db.trackerCollapse.sections[k] = value end
-        end
         local setting = Settings.RegisterProxySetting(
             category,
-            "UITOOLBOX_TRACKER_COLLAPSE_SECTION_" .. strupper(key),
+            "UITOOLBOX_AUTO_COLLAPSE_SECTION_" .. strupper(key),
             Settings.VarType.Boolean,
             entry.label,
             true,
-            MakeGetter(key),
-            MakeSetter(key)
+            function() return UIToolbox.db.autoCollapse.sections[key] end,
+            function(value) UIToolbox.db.autoCollapse.sections[key] = value end
         )
         Settings.CreateCheckbox(category, setting, nil)
     end
+
+    -- ----------------------------------------------------------------
+    -- Damage Meter — Free Move
+    -- ----------------------------------------------------------------
+    local headerDamageMeter = CreateSettingsListSectionHeaderInitializer("Damage Meter")
+    Settings.RegisterInitializer(category, headerDamageMeter)
+
+    local freeMoveEnabledSetting = Settings.RegisterProxySetting(
+        category,
+        "UITOOLBOX_FREE_MOVE_ENABLED",
+        Settings.VarType.Boolean,
+        "Free Move",
+        false,
+        function() return UIToolbox.db.freeMove.enabled end,
+        function(value)
+            UIToolbox.db.freeMove.enabled = value
+            if value then
+                UIToolbox.FreeMove:Enable()
+            else
+                UIToolbox.FreeMove:Disable()
+            end
+        end
+    )
+    Settings.CreateCheckbox(
+        category,
+        freeMoveEnabledSetting,
+        "Makes the Damage Meter window freely draggable outside of Edit Mode. " ..
+        "Position is saved across sessions."
+    )
 
     -- Always the last call -- registers the category into the Settings panel.
     Settings.RegisterAddOnCategory(category)
