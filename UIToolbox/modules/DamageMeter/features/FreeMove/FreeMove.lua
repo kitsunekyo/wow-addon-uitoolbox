@@ -7,7 +7,8 @@
 local FreeMove = {}
 UIToolbox.FreeMove = FreeMove
 
-local FRAME_NAME  = "DamageMeterSessionWindow1"
+local SESSION_FRAME_NAME = "DamageMeterSessionWindow1"
+local DRAG_FRAME_NAME    = "DamageMeter"
 local BUTTON_SIZE = 27
 local BUTTON_GAP  = 2
 
@@ -31,52 +32,52 @@ local function CapturePosition(frame)
     }
 end
 
--- ── Drag enable / disable ────────────────────────────────────────────────────
+local function IsValidSavedPosition(pos)
+    if not pos then return false end
+    if not pos.point or not pos.relativePoint then return false end
+    if pos.relativeTo == DRAG_FRAME_NAME then
+        return false
+    end
+    return true
+end
 
-local firstEnable = true
+-- ── Drag enable / disable ────────────────────────────────────────────────────
 
 function FreeMove:Enable()
     local db    = UIToolbox.db.freeMove
-    local frame = _G[FRAME_NAME]
-    if not frame then return end
+    local frame = _G[DRAG_FRAME_NAME]
+    local dragHandle = _G[SESSION_FRAME_NAME]
+    if not frame or not dragHandle then return end
     if InCombatLockdown() then return end
 
-    if firstEnable then
-        firstEnable = false
-        if not db.savedPosition then
-            db.savedPosition = CapturePosition(frame)
-        end
-    else
-        if db.savedPosition then
-            ApplyPosition(frame, db.savedPosition)
-        end
+    if db.savedPosition and db.hasCustomPosition and IsValidSavedPosition(db.savedPosition) then
+        ApplyPosition(frame, db.savedPosition)
     end
 
     frame:SetMovable(true)
-    frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", function(f) f:StartMoving() end)
-    frame:SetScript("OnDragStop",  function(f)
-        f:StopMovingOrSizing()
-        UIToolbox.db.freeMove.savedPosition = CapturePosition(f)
+    dragHandle:EnableMouse(true)
+    dragHandle:RegisterForDrag("LeftButton")
+    dragHandle:SetScript("OnDragStart", function()
+        frame:StartMoving()
+    end)
+    dragHandle:SetScript("OnDragStop",  function()
+        frame:StopMovingOrSizing()
+        UIToolbox.db.freeMove.savedPosition = CapturePosition(frame)
+        UIToolbox.db.freeMove.hasCustomPosition = true
     end)
 end
 
 function FreeMove:Disable()
-    local db    = UIToolbox.db.freeMove
-    local frame = _G[FRAME_NAME]
-    if not frame then return end
+    local frame = _G[DRAG_FRAME_NAME]
+    local dragHandle = _G[SESSION_FRAME_NAME]
+    if not frame or not dragHandle then return end
     if InCombatLockdown() then return end
 
-    frame:SetScript("OnDragStart", nil)
-    frame:SetScript("OnDragStop",  nil)
+    dragHandle:SetScript("OnDragStart", nil)
+    dragHandle:SetScript("OnDragStop",  nil)
     frame:SetMovable(false)
-    frame:EnableMouse(false)
-    frame:RegisterForDrag()
+    dragHandle:RegisterForDrag()
 
-    if db.savedPosition then
-        ApplyPosition(frame, db.savedPosition)
-    end
 end
 
 -- ── Button injection ─────────────────────────────────────────────────────────
@@ -129,6 +130,15 @@ function FreeMove:OnZoneChanged()
     initialized = true
 
     local db = UIToolbox.db.freeMove
+    if db.savedPosition and not IsValidSavedPosition(db.savedPosition) then
+        db.savedPosition = nil
+        db.hasCustomPosition = false
+    end
+
+    if db.hasCustomPosition == nil then
+        db.hasCustomPosition = db.savedPosition ~= nil
+    end
+
     if db.enabled then
         self:Enable()
     end
@@ -144,7 +154,7 @@ local function HookDamageMeter()
         end
     end)
 
-    local sessionWindow = _G[FRAME_NAME]
+    local sessionWindow = _G[SESSION_FRAME_NAME]
     if sessionWindow then
         CreateHeaderButtons(sessionWindow)
     end

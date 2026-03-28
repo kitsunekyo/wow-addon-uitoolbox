@@ -18,6 +18,7 @@ local DEFAULTS = {
     freeMove = {
         enabled      = false,
         savedPosition = nil,
+        hasCustomPosition = false,
     },
 }
 
