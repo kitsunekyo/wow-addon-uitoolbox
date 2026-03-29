@@ -20,6 +20,10 @@ local DEFAULTS = {
         savedPosition = nil,
         hasCustomPosition = false,
     },
+    -- Nameplates: NameplateScale
+    nameplateScale = {
+        factor = 1.0,
+    },
 }
 
 -- Recursively apply defaults: fill in any keys that are missing from target.

@@ -71,6 +71,7 @@ Reference documents accumulated during development. Consult these before researc
 
 - [Attaching Buttons to Blizzard Frames](knowledge/attaching-buttons-to-blizzard-frames.md) — how to inject custom buttons into Blizzard frames, atlas texture usage, accessing frame children, idempotency, and hooking late-created windows
 - [Edit Mode and Injected Buttons](knowledge/edit-mode-and-injected-buttons.md) — how Edit Mode dragging affects injected buttons, primary vs secondary damage meter windows, `ApplyLayoutToFrame` hook pattern
+- [Taint and Secure Execution](knowledge/taint-and-secure-execution.md) — how taint spreads, protected functions, `hooksecurefunc` vs `HookScript`, combat lockdown guards, `AllowedWhenUntainted` APIs, debugging taint errors, and UIToolbox-specific risk areas
 
 ## Resources
 

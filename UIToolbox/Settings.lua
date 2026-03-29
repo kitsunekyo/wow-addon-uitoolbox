@@ -82,6 +82,38 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         "Position is saved across sessions."
     )
 
+    -- ----------------------------------------------------------------
+    -- Nameplates — Scale Fine-Tune
+    -- ----------------------------------------------------------------
+    local headerNameplates = CreateSettingsListSectionHeaderInitializer("Nameplates")
+    Settings.RegisterInitializer(category, headerNameplates)
+
+    local nameplateScaleSetting = Settings.RegisterProxySetting(
+        category,
+        "UITOOLBOX_NAMEPLATE_SCALE",
+        Settings.VarType.Number,
+        "Scale Fine-Tune",
+        1.0,
+        function() return UIToolbox.db.nameplateScale.factor end,
+        function(value)
+            UIToolbox.NameplateScale:SetFactor(value)
+        end
+    )
+
+    local sliderOptions = Settings.CreateSliderOptions(0.75, 1.6, 0.05)
+    sliderOptions:SetLabelFormatter(
+        MinimalSliderWithSteppersMixin.Label.Right,
+        function(value) return string.format("%.0f%%", value * 100) end
+    )
+
+    Settings.CreateSlider(
+        category,
+        nameplateScaleSetting,
+        sliderOptions,
+        "Multiplies the current Blizzard nameplate size by this factor. " ..
+        "Use this to fine-tune between Blizzard's preset steps (Small / Medium / Large …)."
+    )
+
     -- Always the last call -- registers the category into the Settings panel.
     Settings.RegisterAddOnCategory(category)
 
