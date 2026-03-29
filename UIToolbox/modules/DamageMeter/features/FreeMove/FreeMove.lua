@@ -3,12 +3,17 @@
 --
 -- Makes DamageMeterSessionWindow1 freely draggable outside Edit Mode.
 -- Persists position to UIToolboxDB. Injects a toggle button above the window.
+--
+-- Technical note: DamageMeter (the Edit Mode system frame) is a protected Blizzard
+-- frame and cannot be moved by addon code. We instead move DamageMeterSessionWindow1
+-- by detaching it from its parent DamageMeter frame (TOPLEFT+BOTTOMRIGHT anchors,
+-- which also control size) and giving it an explicit size + single TOPLEFT anchor.
+-- On disable we pin it in place the same way so there is no visible jump.
 
 local FreeMove = {}
 UIToolbox.FreeMove = FreeMove
 
 local SESSION_FRAME_NAME = "DamageMeterSessionWindow1"
-local DRAG_FRAME_NAME    = "DamageMeter"
 local BUTTON_SIZE = 27
 local BUTTON_GAP  = 2
 
@@ -17,6 +22,9 @@ local BUTTON_GAP  = 2
 local function ApplyPosition(frame, pos)
     local relativeFrame = _G[pos.relativeTo] or UIParent
     frame:ClearAllPoints()
+    if pos.width and pos.height then
+        frame:SetSize(pos.width, pos.height)
+    end
     frame:SetPoint(pos.point, relativeFrame, pos.relativePoint, pos.offsetX, pos.offsetY)
 end
 
@@ -29,55 +37,70 @@ local function CapturePosition(frame)
         relativePoint = relativePoint,
         offsetX       = offsetX,
         offsetY       = offsetY,
+        width         = frame:GetWidth(),
+        height        = frame:GetHeight(),
     }
 end
 
 local function IsValidSavedPosition(pos)
     if not pos then return false end
     if not pos.point or not pos.relativePoint then return false end
-    if pos.relativeTo == DRAG_FRAME_NAME then
-        return false
-    end
+    -- Reject positions relative to the Edit Mode parent — those are stale
+    if pos.relativeTo == "DamageMeter" then return false end
     return true
 end
 
 -- ── Drag enable / disable ────────────────────────────────────────────────────
 
-function FreeMove:Enable()
+-- Detach SessionWindow1 from DamageMeter and pin it at its current screen
+-- position and size. Must be called while the frame still has valid anchors.
+local function PinToScreen(frame)
+    local left   = frame:GetLeft()
+    local top    = frame:GetTop()
+    local width  = frame:GetWidth()
+    local height = frame:GetHeight()
+    frame:ClearAllPoints()
+    frame:SetSize(width, height)
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left or 0, top or 0)
+end
+
+function FreeMove:Enable(restoreSavedPosition)
     local db    = UIToolbox.db.freeMove
-    local frame = _G[DRAG_FRAME_NAME]
-    local dragHandle = _G[SESSION_FRAME_NAME]
-    if not frame or not dragHandle then return end
+    local frame = _G[SESSION_FRAME_NAME]
+    if not frame then return end
     if InCombatLockdown() then return end
 
-    if db.savedPosition and db.hasCustomPosition and IsValidSavedPosition(db.savedPosition) then
+    if restoreSavedPosition and db.hasCustomPosition and IsValidSavedPosition(db.savedPosition) then
         ApplyPosition(frame, db.savedPosition)
+    else
+        PinToScreen(frame)
     end
 
     frame:SetMovable(true)
-    dragHandle:EnableMouse(true)
-    dragHandle:RegisterForDrag("LeftButton")
-    dragHandle:SetScript("OnDragStart", function()
-        frame:StartMoving()
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function(self)
+        self:StartMoving()
     end)
-    dragHandle:SetScript("OnDragStop",  function()
-        frame:StopMovingOrSizing()
-        UIToolbox.db.freeMove.savedPosition = CapturePosition(frame)
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        UIToolbox.db.freeMove.savedPosition = CapturePosition(self)
         UIToolbox.db.freeMove.hasCustomPosition = true
     end)
 end
 
 function FreeMove:Disable()
-    local frame = _G[DRAG_FRAME_NAME]
-    local dragHandle = _G[SESSION_FRAME_NAME]
-    if not frame or not dragHandle then return end
+    local frame = _G[SESSION_FRAME_NAME]
+    if not frame then return end
     if InCombatLockdown() then return end
 
-    dragHandle:SetScript("OnDragStart", nil)
-    dragHandle:SetScript("OnDragStop",  nil)
+    frame:SetScript("OnDragStart", nil)
+    frame:SetScript("OnDragStop",  nil)
     frame:SetMovable(false)
-    dragHandle:RegisterForDrag()
+    frame:RegisterForDrag()
 
+    -- Leave the frame where it is visually — just pin it to UIParent at its
+    -- current screen position so it doesn't snap back to DamageMeter's anchor.
+    PinToScreen(frame)
 end
 
 -- ── Button injection ─────────────────────────────────────────────────────────
@@ -140,7 +163,7 @@ function FreeMove:OnZoneChanged()
     end
 
     if db.enabled then
-        self:Enable()
+        self:Enable(true)  -- restore saved position on login
     end
 end
 
