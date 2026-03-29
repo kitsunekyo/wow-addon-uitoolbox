@@ -10,6 +10,7 @@
 Core.lua
 Settings.lua
 modules\ObjectivesTracker\features\AutoCollapse\AutoCollapse.lua
+modules\ObjectivesTracker\CustomSection\CustomSection.lua
 modules\DamageMeter\features\FreeMove\FreeMove.lua
 modules\DamageMeter\features\QuickClear\QuickClear.lua
 modules\DamageMeter\features\Collapse\Collapse.lua
