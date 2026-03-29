@@ -19,16 +19,6 @@ local windowState = {}
 
 -- ── Collapse / expand logic ───────────────────────────────────────────────────
 
--- Re-anchor the session window at its current top-left position with a new
--- height, so the header never moves when collapsing or expanding.
-local function ReplaceHeightKeepTop(sessionWindow, newHeight)
-    local left = sessionWindow:GetLeft()
-    local top  = sessionWindow:GetTop()
-    sessionWindow:ClearAllPoints()
-    sessionWindow:SetSize(sessionWindow:GetWidth(), newHeight)
-    sessionWindow:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left or 0, top or 0)
-end
-
 local function SetCollapsed(sessionWindow, collapsed)
     local state = windowState[sessionWindow]
     if not state then return end
@@ -50,8 +40,8 @@ local function SetCollapsed(sessionWindow, collapsed)
             state.savedHeight = state.savedHeight > 0 and 200 or 200
         end
 
-        -- Shrink the window to just the header, keeping the top edge fixed.
-        ReplaceHeightKeepTop(sessionWindow, HEADER_HEIGHT)
+        -- Shrink the window to just the header.
+        sessionWindow:SetHeight(HEADER_HEIGHT)
 
         -- Disable resizing while collapsed.
         if sessionWindow.SetResizeBounds then
@@ -64,11 +54,11 @@ local function SetCollapsed(sessionWindow, collapsed)
         if background   then background:Hide()   end
         if resizeButton then resizeButton:Hide() end
     else
-        -- Restore the window to its previous full height, keeping the top edge fixed.
+        -- Restore the window to its previous full height.
         local restoreHeight = (state.savedHeight and state.savedHeight > HEADER_HEIGHT)
             and state.savedHeight or 200
 
-        ReplaceHeightKeepTop(sessionWindow, restoreHeight)
+        sessionWindow:SetHeight(restoreHeight)
 
         -- Re-enable free resizing.
         if sessionWindow.SetResizeBounds then
