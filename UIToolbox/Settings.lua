@@ -54,35 +54,6 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
     end
 
     -- ----------------------------------------------------------------
-    -- Damage Meter — Free Move
-    -- ----------------------------------------------------------------
-    local headerDamageMeter = CreateSettingsListSectionHeaderInitializer("Damage Meter")
-    Settings.RegisterInitializer(category, headerDamageMeter)
-
-    local freeMoveEnabledSetting = Settings.RegisterProxySetting(
-        category,
-        "UITOOLBOX_FREE_MOVE_ENABLED",
-        Settings.VarType.Boolean,
-        "Free Move",
-        false,
-        function() return UIToolbox.db.freeMove.enabled end,
-        function(value)
-            UIToolbox.db.freeMove.enabled = value
-            if value then
-                UIToolbox.FreeMove:Enable()
-            else
-                UIToolbox.FreeMove:Disable()
-            end
-        end
-    )
-    Settings.CreateCheckbox(
-        category,
-        freeMoveEnabledSetting,
-        "Makes the Damage Meter window freely draggable outside of Edit Mode. " ..
-        "Position is saved across sessions."
-    )
-
-    -- ----------------------------------------------------------------
     -- Nameplates — Scale Fine-Tune
     -- ----------------------------------------------------------------
     local headerNameplates = CreateSettingsListSectionHeaderInitializer("Nameplates")
