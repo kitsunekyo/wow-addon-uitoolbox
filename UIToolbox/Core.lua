@@ -14,11 +14,9 @@ local DEFAULTS = {
             worldQuests = true,
         },
     },
-    -- DamageMeter: FreeMove
-    freeMove = {
-        enabled      = false,
-        savedPosition = nil,
-        hasCustomPosition = false,
+    -- ObjectivesTracker: DamageMeterEmbed
+    objectivesTrackerDamageMeter = {
+        enabled = false,
     },
     -- Nameplates: NameplateScale
     nameplateScale = {
@@ -70,6 +68,12 @@ function UIToolbox:ADDON_LOADED(addonName)
 
     -- Initialize SavedVariables and apply defaults for any missing keys.
     UIToolboxDB = UIToolboxDB or {}
+
+    -- Migrate legacy key name used before this became an ObjectivesTracker feature.
+    if UIToolboxDB.objectivesTrackerDamageMeter == nil and UIToolboxDB.trackerEmbed ~= nil then
+        UIToolboxDB.objectivesTrackerDamageMeter = CopyTable(UIToolboxDB.trackerEmbed)
+    end
+
     ApplyDefaults(UIToolboxDB, DEFAULTS)
     self.db = UIToolboxDB
 

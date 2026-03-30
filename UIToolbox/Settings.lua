@@ -112,6 +112,33 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
     end
 
     -- ----------------------------------------------------------------
+    -- Damage Meter
+    -- ----------------------------------------------------------------
+    local damageMeterSection = createSection("Damage Meter")
+    Settings.RegisterInitializer(category, damageMeterSection)
+
+    local damageMeterEmbedSetting = Settings.RegisterProxySetting(
+        category,
+        "UITOOLBOX_OBJECTIVE_TRACKER_DAMAGE_METER_EMBED",
+        Settings.VarType.Boolean,
+        "Show in Objective Tracker",
+        false,
+        function() return UIToolbox.db.objectivesTrackerDamageMeter.enabled end,
+        function(value)
+            UIToolbox.db.objectivesTrackerDamageMeter.enabled = value
+            if UIToolboxObjectivesTrackerDamageMeterModule then
+                ObjectiveTrackerManager:UpdateAll()
+            end
+        end
+    )
+    local damageMeterEmbedInit = Settings.CreateCheckbox(
+        category,
+        damageMeterEmbedSetting,
+        "Embeds the damage meter inside the Objective Tracker as a collapsible section."
+    )
+    addToSection(damageMeterEmbedInit, damageMeterSection)
+
+    -- ----------------------------------------------------------------
     -- Nameplates — Scale Fine-Tune
     -- ----------------------------------------------------------------
     local nameplatesSection = createSection("Nameplates")
