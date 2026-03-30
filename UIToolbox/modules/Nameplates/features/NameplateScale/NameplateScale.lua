@@ -42,21 +42,34 @@ local BASE_WIDTH     = 230  -- matches NamePlateDriverMixin:GetNamePlateWidth ba
 
 -- Weak table: every UnitFrame we have seen, so we can re-apply scale immediately
 -- when the slider changes without waiting for the next ApplyFrameOptions call.
-local seenFrames = setmetatable({}, { __mode = "v" })
+local seenFrames = setmetatable({}, { __mode = "k" })
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
 local function GetFactor()
-    return UIToolbox.db.nameplateScale.factor or DEFAULT_FACTOR
+    local factor = tonumber(UIToolbox.db.nameplateScale.factor)
+    if not factor or factor <= 0 then
+        return DEFAULT_FACTOR
+    end
+
+    return factor
 end
 
 -- Scale the UnitFrame's visual content.
 local function ScaleUnitFrame(unitFrame)
+    if not unitFrame or not unitFrame.IsObjectType or not unitFrame:IsObjectType("Frame") then
+        return
+    end
+
+    if unitFrame.IsForbidden and unitFrame:IsForbidden() then
+        return
+    end
+
     unitFrame:SetScale(GetFactor())
 end
 
 local function ScaleAllSeen()
-    for _, unitFrame in pairs(seenFrames) do
+    for unitFrame in pairs(seenFrames) do
         ScaleUnitFrame(unitFrame)
     end
 end
@@ -85,7 +98,12 @@ end
 -- ── Public API ────────────────────────────────────────────────────────────────
 
 function NameplateScale:SetFactor(factor)
-    UIToolbox.db.nameplateScale.factor = factor
+    local normalized = tonumber(factor)
+    if not normalized or normalized <= 0 then
+        normalized = DEFAULT_FACTOR
+    end
+
+    UIToolbox.db.nameplateScale.factor = normalized
     ScaleAllSeen()
     CorrectContainerWidth()
 end
@@ -104,7 +122,7 @@ frame:SetScript("OnEvent", function(_, event)
         -- Hook ApplyFrameOptions — fires on every nameplate UnitFrame on spawn
         -- and whenever Blizzard re-applies options (CVar change, etc.).
         hooksecurefunc(NamePlateUnitFrameMixin, "ApplyFrameOptions", function(self)
-            seenFrames[self] = self
+            seenFrames[self] = true
             ScaleUnitFrame(self)
         end)
 

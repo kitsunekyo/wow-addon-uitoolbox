@@ -85,6 +85,17 @@ local function RestoreHeaderFont(sessionWindow)
     end
 end
 
+local function RefreshEmbeddedStyleState(sessionWindow)
+    if not sessionWindow then return end
+
+    if DamageMeter and DamageMeter.ShouldUseClassColor and sessionWindow.SetUseClassColor then
+        local useClassColor = DamageMeter:ShouldUseClassColor()
+        if useClassColor ~= nil then
+            sessionWindow:SetUseClassColor(useClassColor and true or false)
+        end
+    end
+end
+
 -- Called by the container every time the tracker repaints.
 function UIToolboxObjectivesTrackerDamageMeterModuleMixin:LayoutContents()
     if not ShouldEmbed() then
@@ -156,6 +167,7 @@ function UIToolboxObjectivesTrackerDamageMeterModuleMixin:EmbedSessionWindow()
     sessionWindow:SetClampedToScreen(false)
     ApplyEmbeddedHeaderFont(sessionWindow)
     sessionWindow:Show()
+    RefreshEmbeddedStyleState(sessionWindow)
 end
 
 -- Restore DamageMeterSessionWindow1 to its original parent and position.
@@ -235,9 +247,19 @@ end)
 
 -- Re-embed after Edit Mode writes its layout back to DamageMeter (which would
 -- overwrite our anchors on the session window's parent). Defer one tick.
+local function TryHookMethod(object, methodName, hookFunc)
+    if object and type(object[methodName]) == "function" then
+        hooksecurefunc(object, methodName, hookFunc)
+        return true
+    end
+
+    return false
+end
+
 local function HookEditMode()
     if not EditModeManagerFrame then return end
-    hooksecurefunc(EditModeManagerFrame, "ApplyLayoutToFrame", function(_, systemFrame)
+
+    local function ReembedIfDamageMeter(_, systemFrame)
         if systemFrame == DamageMeter then
             C_Timer.After(0, function()
                 if ShouldEmbed() then
@@ -245,7 +267,15 @@ local function HookEditMode()
                 end
             end)
         end
-    end)
+    end
+
+    -- Older clients used ApplyLayoutToFrame; current retail updates each
+    -- system through UpdateSystem.
+    if TryHookMethod(EditModeManagerFrame, "ApplyLayoutToFrame", ReembedIfDamageMeter) then
+        return
+    end
+
+    TryHookMethod(EditModeManagerFrame, "UpdateSystem", ReembedIfDamageMeter)
 end
 
 -- Hook edit mode once DamageMeter is available.
