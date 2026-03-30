@@ -139,7 +139,7 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
     addToSection(damageMeterEmbedInit, damageMeterSection)
 
     -- ----------------------------------------------------------------
-    -- Nameplates — Scale Fine-Tune
+    -- Nameplates
     -- ----------------------------------------------------------------
     local nameplatesSection = createSection("Nameplates")
     Settings.RegisterInitializer(category, nameplatesSection)
@@ -170,6 +170,34 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         "Use this to fine-tune between Blizzard's preset steps (Small / Medium / Large …)."
     )
     addToSection(nameplateScaleInit, nameplatesSection)
+
+    -- ----------------------------------------------------------------
+    -- Personal Resource Display
+    -- ----------------------------------------------------------------
+    local prdSection = createSection("Personal Resource Display")
+    Settings.RegisterInitializer(category, prdSection)
+
+    local prdEnabledSetting = Settings.RegisterProxySetting(
+        category,
+        "UITOOLBOX_PERSONAL_RESOURCE_DISPLAY_ENABLED",
+        Settings.VarType.Boolean,
+        "Enable custom bars",
+        true,
+        function() return UIToolbox.db.personalResourceDisplay.enabled end,
+        function(value)
+            UIToolbox.db.personalResourceDisplay.enabled = value
+            if UIToolboxPersonalResourceDisplayModule then
+                UIToolboxPersonalResourceDisplayModule:ApplyToCurrentPlayerNameplate()
+            end
+        end
+    )
+
+    local prdEnabledInit = Settings.CreateCheckbox(
+        category,
+        prdEnabledSetting,
+        "Hides the personal-resource health bar and restyles the power bar."
+    )
+    addToSection(prdEnabledInit, prdSection)
 
     -- Always the last call -- registers the category into the Settings panel.
     Settings.RegisterAddOnCategory(category)

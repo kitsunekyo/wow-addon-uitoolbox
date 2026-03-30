@@ -12,3 +12,4 @@ Settings.lua
 modules\ObjectivesTracker\features\AutoCollapse\AutoCollapse.lua
 modules\ObjectivesTracker\features\DamageMeterEmbed\DamageMeterEmbed.lua
 modules\Nameplates\features\NameplateScale\NameplateScale.lua
+modules\PersonalResourceDisplay\features\BarStyling\PersonalResourceDisplay.lua

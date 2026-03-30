@@ -22,6 +22,10 @@ local DEFAULTS = {
     nameplateScale = {
         factor = 1.0,
     },
+    -- PersonalResourceDisplay: bar styling
+    personalResourceDisplay = {
+        enabled = true,
+    },
 }
 
 -- Recursively apply defaults: fill in any keys that are missing from target.
