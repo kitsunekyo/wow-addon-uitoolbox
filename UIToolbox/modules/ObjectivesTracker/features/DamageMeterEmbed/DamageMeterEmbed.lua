@@ -17,6 +17,13 @@
 -- we match what it ships with by default (similar to the tracker panel height).
 local METER_HEIGHT = 200
 
+-- Expand the embedded meter a bit past the tracker content bounds so the
+-- meter rows visually span the full section width.
+local METER_SIDE_BLEED = 20
+
+-- Slightly reduce the "Damage Done" header text size in the embedded view.
+local DAMAGE_TYPE_HEADER_FONT_DELTA = 1
+
 -- ---------------------------------------------------------------------------
 -- Mixin
 -- ---------------------------------------------------------------------------
@@ -44,6 +51,38 @@ end
 -- Returns true when the session window exists and is available to embed.
 local function GetSessionWindow()
     return _G["DamageMeterSessionWindow1"]
+end
+
+local function ApplyEmbeddedHeaderFont(sessionWindow)
+    if not sessionWindow.GetDamageMeterTypeName then return end
+
+    local typeName = sessionWindow:GetDamageMeterTypeName()
+    if not typeName or not typeName.GetFont then return end
+
+    if not sessionWindow._uitoolbox_origTypeNameFont then
+        local fontPath, fontSize, fontFlags = typeName:GetFont()
+        if not (fontPath and fontSize) then return end
+
+        sessionWindow._uitoolbox_origTypeNameFont = {
+            path = fontPath,
+            size = fontSize,
+            flags = fontFlags,
+        }
+    end
+
+    local orig = sessionWindow._uitoolbox_origTypeNameFont
+    local targetSize = math.max(8, orig.size - DAMAGE_TYPE_HEADER_FONT_DELTA)
+    typeName:SetFont(orig.path, targetSize, orig.flags)
+end
+
+local function RestoreHeaderFont(sessionWindow)
+    local orig = sessionWindow._uitoolbox_origTypeNameFont
+    if not orig or not sessionWindow.GetDamageMeterTypeName then return end
+
+    local typeName = sessionWindow:GetDamageMeterTypeName()
+    if typeName and typeName.SetFont then
+        typeName:SetFont(orig.path, orig.size, orig.flags)
+    end
 end
 
 -- Called by the container every time the tracker repaints.
@@ -100,6 +139,7 @@ function UIToolboxObjectivesTrackerDamageMeterModuleMixin:EmbedSessionWindow()
     if not sessionWindow._uitoolbox_embedded then
         -- Save original parent and anchors for restoration.
         sessionWindow._uitoolbox_origParent = sessionWindow:GetParent()
+        sessionWindow._uitoolbox_origClampedToScreen = sessionWindow:IsClampedToScreen()
         sessionWindow._uitoolbox_embedded = true
     end
 
@@ -110,9 +150,11 @@ function UIToolboxObjectivesTrackerDamageMeterModuleMixin:EmbedSessionWindow()
     -- ContentsFrame grows to (METER_HEIGHT) because of SetHeightModifier.
     -- Anchor below the header block with a small top offset.
     sessionWindow:ClearAllPoints()
-    sessionWindow:SetPoint("TOPLEFT",  self.ContentsFrame, "TOPLEFT",  0, 0)
-    sessionWindow:SetPoint("TOPRIGHT", self.ContentsFrame, "TOPRIGHT", 0, 0)
+    sessionWindow:SetPoint("TOPLEFT",  self.ContentsFrame, "TOPLEFT",  -METER_SIDE_BLEED, 0)
+    sessionWindow:SetPoint("TOPRIGHT", self.ContentsFrame, "TOPRIGHT", METER_SIDE_BLEED, 0)
     sessionWindow:SetHeight(METER_HEIGHT)
+    sessionWindow:SetClampedToScreen(false)
+    ApplyEmbeddedHeaderFont(sessionWindow)
     sessionWindow:Show()
 end
 
@@ -134,6 +176,10 @@ function UIToolboxObjectivesTrackerDamageMeterModuleMixin:DetachSessionWindow()
     sessionWindow:ClearAllPoints()
     sessionWindow:SetPoint("TOPLEFT",     origParent, "TOPLEFT",     0,  0)
     sessionWindow:SetPoint("BOTTOMRIGHT", origParent, "BOTTOMRIGHT", 0,  0)
+    if sessionWindow._uitoolbox_origClampedToScreen ~= nil then
+        sessionWindow:SetClampedToScreen(sessionWindow._uitoolbox_origClampedToScreen)
+    end
+    RestoreHeaderFont(sessionWindow)
 end
 
 -- ---------------------------------------------------------------------------
