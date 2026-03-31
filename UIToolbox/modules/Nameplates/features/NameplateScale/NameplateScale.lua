@@ -57,13 +57,16 @@ end
 
 -- Scale the UnitFrame's visual content.
 local function ScaleUnitFrame(unitFrame)
-    if not unitFrame or not unitFrame.IsObjectType or not unitFrame:IsObjectType("Frame") then
-        return
-    end
+    if not unitFrame then return end
 
-    if unitFrame.IsForbidden and unitFrame:IsForbidden() then
-        return
-    end
+    -- IsObjectType can exist as a field on a plain table (via __index) without
+    -- the object being a real Frame userdata, causing "bad self" on the colon
+    -- call. Guard with pcall so we bail cleanly on any invalid object.
+    local ok, isFrame = pcall(function() return unitFrame:IsObjectType("Frame") end)
+    if not ok or not isFrame then return end
+
+    local forbidOk, forbidden = pcall(function() return unitFrame:IsForbidden() end)
+    if forbidOk and forbidden then return end
 
     unitFrame:SetScale(GetFactor())
 end
