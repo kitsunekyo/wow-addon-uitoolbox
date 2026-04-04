@@ -26,6 +26,12 @@ local DEFAULTS = {
     personalResourceDisplay = {
         enabled = true,
     },
+    -- ActionBars: SharedBars
+    -- bars[barIndex] = { enabled = bool, slots = { [n] = { type = "spell"|"item"|"macro"|"equipmentset", id = number } } }
+    -- bars is empty by default; entries are created the first time a bar is enabled.
+    sharedBars = {
+        bars = {},
+    },
 }
 
 -- Recursively apply defaults: fill in any keys that are missing from target.

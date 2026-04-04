@@ -3,75 +3,31 @@
 
 local ADDON_NAME = "UIToolbox"
 
-local SECTION_HEADER_HEIGHT = 32
-
-local function isSearchActive()
-    return SettingsPanel and SettingsPanel.SearchBox and SettingsPanel.SearchBox:HasText()
-end
-
--- Creates a collapsible section initializer.
--- CalculateHeight and OnExpandedChanged are abstract on SettingsExpandableSectionMixin
--- and must be injected onto each concrete frame instance after Init. We do this via a
--- one-time hook on the mixin's Init method.
+-- Creates a non-collapsible section header initializer.
+--
+-- We deliberately avoid SettingsExpandableSectionMixin (collapsible sections) because
+-- that pattern requires writing CalculateHeight and OnExpandedChanged onto individual
+-- frame instances from addon (tainted) code.  Blizzard's UIParentPanelManager reads
+-- those frame fields in a secure execution path when managing panel visibility
+-- (e.g. ShowUIPanel for the WorldMap).  Reading a tainted field inside a secure path
+-- propagates taint forward and eventually blocks protected-function calls such as
+-- Frame:SetPropagateMouseClicks() on world-map pins, producing ADDON_ACTION_BLOCKED.
+--
+-- CreateSettingsListSectionHeaderInitializer is the standard Blizzard API for
+-- non-collapsible section headers.  It uses SettingsListSectionHeaderMixin which only
+-- calls Init() -- no abstract methods, no per-instance writes from addon code.
 local function createSection(name)
-    local init = CreateSettingsExpandableSectionInitializer(name)
-
-    -- GetExtent is called by the scroll box to allocate layout space. When collapsed it
-    -- only needs to fit the header button; when expanded child elements handle their own
-    -- space, so the section frame itself stays header-height only.
-    function init:GetExtent()
-        return SECTION_HEADER_HEIGHT
-    end
-
-    return init
-end
-
--- Hook SettingsExpandableSectionMixin.Init once to inject the two abstract methods onto
--- every expandable section frame as it is acquired from the frame pool.
-local hooked = false
-local function ensureFrameHook()
-    if hooked then return end
-    hooked = true
-
-    hooksecurefunc(SettingsExpandableSectionMixin, "Init", function(frame, initializer)
-        -- CalculateHeight: called by OnClick immediately after toggling data.expanded.
-        -- The section frame itself is always header-height; child rows are separate frames.
-        frame.CalculateHeight = function(self)
-            return SECTION_HEADER_HEIGHT
-        end
-
-        -- OnExpandedChanged: called after SetHeight with the new expanded state.
-        -- Triggers the settings list to re-evaluate all shown predicates.
-        frame.OnExpandedChanged = function(self, expanded)
-            if SettingsInbound and SettingsInbound.RepairDisplay then
-                SettingsInbound.RepairDisplay()
-            elseif SettingsPanel and SettingsPanel.RepairDisplay then
-                SettingsPanel:RepairDisplay()
-            end
-        end
-    end)
-end
-
--- Bind a settings initializer to a collapsible section so it only appears when expanded.
-local function addToSection(initializer, sectionInit)
-    initializer:AddShownPredicate(function()
-        if isSearchActive() then return true end
-        return sectionInit.data.expanded == true
-    end)
+    return CreateSettingsListSectionHeaderInitializer(name)
 end
 
 EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
     -- Top-level category in the AddOns section of the Settings panel.
     local category = Settings.RegisterVerticalLayoutCategory("UIToolbox")
 
-    -- Inject CalculateHeight / OnExpandedChanged onto expandable section frames.
-    ensureFrameHook()
-
     -- ----------------------------------------------------------------
     -- Objective Tracker — Auto-Collapse
     -- ----------------------------------------------------------------
-    local trackerSection = createSection("Objective Tracker")
-    Settings.RegisterInitializer(category, trackerSection)
+    Settings.RegisterInitializer(category, createSection("Objective Tracker"))
 
     local collapseEnabledSetting = Settings.RegisterProxySetting(
         category,
@@ -82,13 +38,12 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         function() return UIToolbox.db.autoCollapse.enabled end,
         function(value) UIToolbox.db.autoCollapse.enabled = value end
     )
-    local collapseEnabledInit = Settings.CreateCheckbox(
+    Settings.CreateCheckbox(
         category,
         collapseEnabledSetting,
         "Automatically collapses objective tracker sections when entering an instance. " ..
         "Restores them when you leave."
     )
-    addToSection(collapseEnabledInit, trackerSection)
 
     local sectionSettings = {
         { key = "campaign",    label = "Campaign Quests" },
@@ -107,15 +62,13 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
             function() return UIToolbox.db.autoCollapse.sections[key] end,
             function(value) UIToolbox.db.autoCollapse.sections[key] = value end
         )
-        local init = Settings.CreateCheckbox(category, setting, nil)
-        addToSection(init, trackerSection)
+        Settings.CreateCheckbox(category, setting, nil)
     end
 
     -- ----------------------------------------------------------------
     -- Damage Meter
     -- ----------------------------------------------------------------
-    local damageMeterSection = createSection("Damage Meter")
-    Settings.RegisterInitializer(category, damageMeterSection)
+    Settings.RegisterInitializer(category, createSection("Damage Meter"))
 
     local damageMeterEmbedSetting = Settings.RegisterProxySetting(
         category,
@@ -131,18 +84,16 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
             end
         end
     )
-    local damageMeterEmbedInit = Settings.CreateCheckbox(
+    Settings.CreateCheckbox(
         category,
         damageMeterEmbedSetting,
         "Embeds the damage meter inside the Objective Tracker as a collapsible section."
     )
-    addToSection(damageMeterEmbedInit, damageMeterSection)
 
     -- ----------------------------------------------------------------
     -- Nameplates
     -- ----------------------------------------------------------------
-    local nameplatesSection = createSection("Nameplates")
-    Settings.RegisterInitializer(category, nameplatesSection)
+    Settings.RegisterInitializer(category, createSection("Nameplates"))
 
     local nameplateScaleSetting = Settings.RegisterProxySetting(
         category,
@@ -162,20 +113,18 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         function(value) return string.format("%.0f%%", value * 100) end
     )
 
-    local nameplateScaleInit = Settings.CreateSlider(
+    Settings.CreateSlider(
         category,
         nameplateScaleSetting,
         sliderOptions,
         "Multiplies the current Blizzard nameplate size by this factor. " ..
         "Use this to fine-tune between Blizzard's preset steps (Small / Medium / Large …)."
     )
-    addToSection(nameplateScaleInit, nameplatesSection)
 
     -- ----------------------------------------------------------------
     -- Personal Resource Display
     -- ----------------------------------------------------------------
-    local prdSection = createSection("Personal Resource Display")
-    Settings.RegisterInitializer(category, prdSection)
+    Settings.RegisterInitializer(category, createSection("Personal Resource Display"))
 
     local prdEnabledSetting = Settings.RegisterProxySetting(
         category,
@@ -192,12 +141,59 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         end
     )
 
-    local prdEnabledInit = Settings.CreateCheckbox(
+    Settings.CreateCheckbox(
         category,
         prdEnabledSetting,
         "Hides the personal-resource health bar and restyles the power bar."
     )
-    addToSection(prdEnabledInit, prdSection)
+
+    -- ----------------------------------------------------------------
+    -- Action Bars — Shared Bars
+    -- ----------------------------------------------------------------
+    Settings.RegisterInitializer(category, createSection("Action Bars"))
+
+    -- Display order and labels for the 8 shareable bars.
+    -- index matches the BAR_SLOTS key in SharedBars.lua.
+    -- Bar 1 has two pages; page 2 uses the synthetic key 10.
+    local sharedBarDefs = {
+        { index = 1,  label = "Action Bar 1 (Page 1)" },
+        { index = 10, label = "Action Bar 1 (Page 2)" },
+        { index = 2,  label = "Action Bar 2"          },
+        { index = 3,  label = "Action Bar 3"          },
+        { index = 4,  label = "Action Bar 4"          },
+        { index = 5,  label = "Action Bar 5"          },
+        { index = 6,  label = "Action Bar 6"          },
+        { index = 7,  label = "Action Bar 7"          },
+        { index = 8,  label = "Action Bar 8"          },
+    }
+
+    for _, def in ipairs(sharedBarDefs) do
+        local barIndex = def.index
+        local setting = Settings.RegisterProxySetting(
+            category,
+            "UITOOLBOX_SHARED_BAR_" .. barIndex,
+            Settings.VarType.Boolean,
+            "Share " .. def.label,
+            false,
+            function()
+                local entry = UIToolbox.db.sharedBars.bars[barIndex]
+                return entry ~= nil and entry.enabled == true
+            end,
+            function(value)
+                if value then
+                    UIToolbox.SharedBars:EnableBar(barIndex)
+                else
+                    UIToolbox.SharedBars:DisableBar(barIndex)
+                end
+            end
+        )
+        Settings.CreateCheckbox(
+            category,
+            setting,
+            "Keeps this bar's button layout the same across all talent loadouts. " ..
+            "Enabling saves the current layout as the shared snapshot."
+        )
+    end
 
     -- Always the last call -- registers the category into the Settings panel.
     Settings.RegisterAddOnCategory(category)

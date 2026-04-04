@@ -12,10 +12,15 @@
 -- Constants
 -- ---------------------------------------------------------------------------
 
--- Height reserved for the embedded damage meter window.
--- DamageMeterSessionWindow1 has a fixed height driven by the Edit Mode system;
--- we match what it ships with by default (similar to the tracker panel height).
-local METER_HEIGHT = 200
+-- Fallback height reserved for the embedded damage meter window when the
+-- session window has not yet been sized by the Edit Mode system.
+-- DamageMeterSessionWindow1's actual height is driven by Edit Mode; we read
+-- it dynamically at embed time to avoid calling SetHeight() on the window.
+-- Calling SetHeight() from addon code taints the frame's C++ height property,
+-- which Blizzard's Edit Mode and UIParent layout code then reads in secure
+-- contexts, propagating taint into tooltip widget containers and causing
+-- "SetWidth: Secret values are only allowed during untainted execution" errors.
+local METER_HEIGHT_FALLBACK = 200
 
 -- Expand the embedded meter a bit past the tracker content bounds so the
 -- meter rows visually span the full section width.
@@ -124,7 +129,13 @@ function UIToolboxObjectivesTrackerDamageMeterModuleMixin:LayoutContents()
     block:Hide()
 
     -- Reserve extra vertical space inside this module for the meter window.
-    self:SetHeightModifier("damageMeter", METER_HEIGHT)
+    -- Use the session window's current (Blizzard-managed) height so we never
+    -- need to call SetHeight() on the session window ourselves.
+    local meterHeight = sessionWindow:GetHeight()
+    if not meterHeight or meterHeight <= 0 then
+        meterHeight = METER_HEIGHT_FALLBACK
+    end
+    self:SetHeightModifier("damageMeter", meterHeight)
 
     -- Anchor the session window inside ContentsFrame on the next tick, after
     -- UpdateHeight() has already run and expanded the module frame.
@@ -157,13 +168,15 @@ function UIToolboxObjectivesTrackerDamageMeterModuleMixin:EmbedSessionWindow()
     -- Re-parent into our module's contents area.
     sessionWindow:SetParent(self.ContentsFrame)
 
-    -- Fill the reserved space inside ContentsFrame.
-    -- ContentsFrame grows to (METER_HEIGHT) because of SetHeightModifier.
-    -- Anchor below the header block with a small top offset.
+    -- Anchor the session window inside ContentsFrame.
+    -- ContentsFrame height is reserved via SetHeightModifier using the session
+    -- window's own (Blizzard-managed) height, so no SetHeight() call is needed.
+    -- Calling SetHeight() from addon code would taint the frame's C++ height
+    -- property, which Blizzard's Edit Mode and UIParent layout code reads in
+    -- secure contexts — that taint propagates into tooltip widget containers.
     sessionWindow:ClearAllPoints()
     sessionWindow:SetPoint("TOPLEFT",  self.ContentsFrame, "TOPLEFT",  -METER_SIDE_BLEED, 0)
     sessionWindow:SetPoint("TOPRIGHT", self.ContentsFrame, "TOPRIGHT", METER_SIDE_BLEED, 0)
-    sessionWindow:SetHeight(METER_HEIGHT)
     sessionWindow:SetClampedToScreen(false)
     ApplyEmbeddedHeaderFont(sessionWindow)
     sessionWindow:Show()
@@ -213,12 +226,66 @@ Mixin(frame, UIToolboxObjectivesTrackerDamageMeterModuleMixin)
 frame.headerText = "Damage Meter"
 frame:SetHeader("Damage Meter")
 
--- Sit below all built-in modules (their uiOrder values are 1–11).
-frame.uiOrder = 100
+-- NOTE: Do NOT set frame.uiOrder here at load time.
+-- Setting it from addon code produces a tainted numeric value. When
+-- ObjectiveTrackerContainerMixin:Update() sorts the modules table it reads
+-- every module's uiOrder via a comparator; reading a tainted value contaminates
+-- the entire sort execution context. That tainted context then propagates into
+-- UIParent_ManageFramePositions(), which repositions UI frames — tainting their
+-- positions. Blizzard code that later reads those positions (e.g.
+-- QuestMapLogTitleButton_OnEnter in QuestMapFrame.lua) then hits
+-- "attempt to perform numeric conversion on a secret number value" errors.
+--
+-- Instead, uiOrder is assigned inside TryRegister() immediately after the
+-- module is registered. The value is still technically tainted (all addon-
+-- written numbers are), but by setting it right before MarkDirty triggers
+-- and clearing needsSorting, we ensure the sort never fires as a direct
+-- result of our module being added, eliminating the taint propagation path.
 
 -- ---------------------------------------------------------------------------
 -- Registration
 -- ---------------------------------------------------------------------------
+
+-- Permanently suppress the module-sort on ObjectiveTrackerFrame.
+--
+-- ObjectiveTrackerContainerMixin:AddModule() and RemoveModule() both set
+-- needsSorting = true, which causes the next Update() to run table.sort().
+-- The sort comparator reads every module's uiOrder; since our module's
+-- uiOrder is written by addon code it is a tainted value. Reading it in the
+-- comparator taints the entire sort execution context, which propagates into
+-- UIParent_ManageFramePositions() and downstream Blizzard code —
+-- triggering "attempt to perform numeric conversion on a secret number value"
+-- (QuestMapFrame.lua:2123) and "SetPassThroughButtons: protected function"
+-- (MapCanvas pin passthrough) errors.
+--
+-- The sort is safe to suppress on ObjectiveTrackerFrame because:
+--   • Built-in modules are ordered stably at startup via AssignModulesOrder().
+--   • Our module always sits at the end (uiOrder 100 > all built-in 1–11).
+--   • Suppressing sort on ObjectiveTrackerFrame does not affect other
+--     containers (BonusObjectiveTracker, etc.) — we guard by container.
+--
+-- We hook AddModule/RemoveModule on the *mixin* so the hook is registered once
+-- and covers all future calls regardless of call site.
+local sortSuppressInstalled = false
+local function InstallSortSuppressHooks()
+    if sortSuppressInstalled then return end
+    sortSuppressInstalled = true
+
+    -- hooksecurefunc runs our callback AFTER the original function body.
+    -- At that point needsSorting has already been set to true; we flip it back
+    -- to false so the sort never executes for ObjectiveTrackerFrame.
+    hooksecurefunc(ObjectiveTrackerContainerMixin, "AddModule", function(self)
+        if self == ObjectiveTrackerFrame then
+            self.needsSorting = false
+        end
+    end)
+
+    hooksecurefunc(ObjectiveTrackerContainerMixin, "RemoveModule", function(self)
+        if self == ObjectiveTrackerFrame then
+            self.needsSorting = false
+        end
+    end)
+end
 
 -- Use hooksecurefunc on Init so we are guaranteed to run after
 -- ObjectiveTrackerManager:Init() has populated self.containers.
@@ -231,7 +298,18 @@ local function TryRegister()
         return
     end
     registered = true
+
+    -- Install sort-suppress hooks before registration so the AddModule call
+    -- inside SetModuleContainer is already covered.
+    InstallSortSuppressHooks()
+
+    -- Assign uiOrder here (just before registration) so the value is present
+    -- when needed, but note it is still addon-tainted.
+    -- Sit below all built-in modules (their uiOrder values are 1–11).
+    UIToolboxObjectivesTrackerDamageMeterModule.uiOrder = 100
+
     ObjectiveTrackerManager:SetModuleContainer(UIToolboxObjectivesTrackerDamageMeterModule, ObjectiveTrackerFrame)
+
     C_Timer.After(0, function()
         ObjectiveTrackerManager:UpdateAll()
     end)

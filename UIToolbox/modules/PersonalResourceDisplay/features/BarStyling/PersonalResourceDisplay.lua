@@ -144,6 +144,19 @@ function PersonalResourceDisplay:TryInstallHooks()
         PersonalResourceDisplay:ApplyToCurrentPlayerNameplate()
     end)
 
+    -- Hook HealthBarsContainer:Show directly so any Show() call from Blizzard code
+    -- (e.g. inside SetupHealthBar at the end, or future callers) is intercepted.
+    -- This runs after our per-method hooks and re-hides the container whenever
+    -- the feature is enabled, closing the race window entirely.
+    local frame = GetFrame()
+    if frame and frame.HealthBarsContainer then
+        hooksecurefunc(frame.HealthBarsContainer, "Show", function()
+            if IsEnabled() then
+                frame.HealthBarsContainer:Hide()
+            end
+        end)
+    end
+
     hooksInstalled = true
 end
 
