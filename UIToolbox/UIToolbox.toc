@@ -12,6 +12,8 @@ Settings.lua
 modules\ObjectivesTracker\features\AutoCollapse\AutoCollapse.lua
 modules\ObjectivesTracker\features\DamageMeterEmbed\DamageMeterEmbed.lua
 modules\Nameplates\features\NameplateScale\NameplateScale.lua
+shared\EditModeCompanionDialog\EditModeCompanionDialog.lua
 modules\PersonalResourceDisplay\features\BarStyling\PersonalResourceDisplay.lua
+modules\PersonalResourceDisplay\features\EditModeIntegration\EditModeIntegration.lua
 modules\ActionBars\features\SharedBars\SharedBars.lua
 modules\ActionBars\features\EditModeIntegration\EditModeIntegration.lua

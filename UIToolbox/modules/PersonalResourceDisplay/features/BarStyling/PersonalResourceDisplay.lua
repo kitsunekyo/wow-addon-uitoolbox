@@ -16,24 +16,21 @@ local hooksInstalled = false
 local originalHealthContainerHeight = nil
 local originalPowerBarHeight = nil
 
-local function IsEnabled()
+local function IsHideHealthBarEnabled()
     return UIToolbox.db
         and UIToolbox.db.personalResourceDisplay
-        and UIToolbox.db.personalResourceDisplay.enabled
-end
-
-local function IsHideHealthBarEnabled()
-    return IsEnabled()
         and UIToolbox.db.personalResourceDisplay.hideHealthBar
 end
 
 local function IsHideClassResourcesEnabled()
-    return IsEnabled()
+    return UIToolbox.db
+        and UIToolbox.db.personalResourceDisplay
         and UIToolbox.db.personalResourceDisplay.hideClassResources
 end
 
 local function IsRestyleBarsEnabled()
-    return IsEnabled()
+    return UIToolbox.db
+        and UIToolbox.db.personalResourceDisplay
         and UIToolbox.db.personalResourceDisplay.restylePowerBar
 end
 

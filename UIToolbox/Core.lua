@@ -24,7 +24,6 @@ local DEFAULTS = {
     },
     -- PersonalResourceDisplay: bar styling
     personalResourceDisplay = {
-        enabled         = true,
         hideHealthBar   = false,
         hideClassResources = false,
         restylePowerBar = false,
