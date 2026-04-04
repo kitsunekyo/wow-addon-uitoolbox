@@ -24,14 +24,26 @@
 --   Both events can fire together on a spec change, so TriggerRestore is
 --   debounced — multiple calls within the same frame only schedule one restore.
 --
+-- ── Live editing ───────────────────────────────────────────────────────────────
+--
+-- ACTIONBAR_SLOT_CHANGED fires whenever the player adds, removes, or moves an
+-- action on any bar (arg1 = 1-based slot number).  When the changed slot belongs
+-- to an enabled shared bar we re-snapshot that bar so the edit is persisted and
+-- survives the next loadout/spec switch.
+--
+-- Snapshots are suppressed while RestoreBar is running (the pickup/place calls
+-- inside RestoreBar also fire ACTION_BAR_SLOT_CHANGED; we must not let those
+-- clobber the snapshot with the spec-specific layout we are replacing).
+--
 -- ── Mount handling ─────────────────────────────────────────────────────────────
 --
 -- GetActionInfo returns type="summonmount", id=mountActionID (opaque, not a
 -- spellID). C_Spell.PickupSpell(mountActionID) does NOT work.
 -- Correct path:
 --   Snapshot: C_ActionBar.GetSpell(slot) → spellID (stable mount summon spell)
---   Restore:  C_Spell.PickupSpell(spellID) — mount spells are regular spells
---             and can be placed on action bars exactly like other spells.
+--   Restore:  PickupMountBySpellID(spellID) — iterates C_MountJournal.GetMountIDs()
+--             to find the mount by spellID, then calls C_MountJournal.Pickup(idx).
+--             C_Spell.PickupSpell does not work for mounts in current retail.
 --   Special:  mountActionID == 268435455 → "Summon Random Favorite Mount"
 --             → store spellID=0, restore with C_MountJournal.Pickup(0)
 --
@@ -83,10 +95,23 @@ local BAR_COUNT = 12  -- buttons per bar
 -- Opaque mountActionID returned by GetActionInfo for "Summon Random Favorite Mount".
 local RANDOM_FAVORITE_MOUNT_ACTION_ID = 268435455
 
+-- ── Slot → bar reverse lookup ──────────────────────────────────────────────────
+-- Built once from BAR_SLOTS so we can map any slot number back to a barIndex
+-- in O(1) instead of scanning all bars on every ACTION_BAR_SLOT_CHANGED.
+
+local SLOT_TO_BAR = {}  -- [slotNumber] = barIndex
+for barIndex, firstSlot in pairs(BAR_SLOTS) do
+    for i = 0, BAR_COUNT - 1 do
+        SLOT_TO_BAR[firstSlot + i] = barIndex
+    end
+end
+
 -- ── State ──────────────────────────────────────────────────────────────────────
 
-local pendingRestore  = false  -- true when a restore was deferred due to combat
-local restorePending  = false  -- debounce flag for TriggerRestore
+local pendingRestore    = false  -- true when a restore was deferred due to combat
+local restorePending    = false  -- debounce flag for TriggerRestore
+local restoringBars     = false  -- true while RestoreBar is running; suppresses snapshot-on-change
+local pendingSnapshots  = {}     -- barIndex → true; set by debounce, cleared by timer
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -107,6 +132,53 @@ local function GetFirstSlot(barIndex)
     return BAR_SLOTS[barIndex]
 end
 
+-- Pick up a mount onto the cursor by its spellID, ready to be placed on an
+-- action bar slot.  Uses C_MountJournal.Pickup which is the only API that
+-- correctly places a mount on an action button.
+--
+-- C_MountJournal.Pickup takes a displayIndex — the 1-based index into the
+-- currently displayed (filtered) mount list, NOT into GetMountIDs().
+-- To guarantee the mount is visible we temporarily reset journal filters,
+-- find the mount by mountID in the displayed list, pick it up, then restore
+-- the previous search text and filters.
+--
+-- Returns true if the mount was found and picked up.
+local function PickupMountBySpellID(spellID)
+    -- First find the mountID for this spellID.
+    local targetMountID
+    for _, mountID in ipairs(C_MountJournal.GetMountIDs()) do
+        local _, mSpellID, _, _, _, _, _, _, _, _, isCollected = C_MountJournal.GetMountInfoByID(mountID)
+        if isCollected and mSpellID == spellID then
+            targetMountID = mountID
+            break
+        end
+    end
+    if not targetMountID then return false end
+
+    -- Save current search text and reset filters so every collected mount shows.
+    local savedSearch = C_MountJournal.GetSearch and C_MountJournal.GetSearch() or ""
+    C_MountJournal.SetDefaultFilters()
+    C_MountJournal.SetSearch("")
+
+    -- Find the display index for our mount.
+    local displayIndex
+    local numDisplayed = C_MountJournal.GetNumDisplayedMounts()
+    for i = 1, numDisplayed do
+        local _, _, _, _, _, _, _, _, _, _, _, mID = C_MountJournal.GetDisplayedMountInfo(i)
+        if mID == targetMountID then
+            displayIndex = i
+            break
+        end
+    end
+
+    -- Restore previous search (filters were reset to default; that's acceptable).
+    C_MountJournal.SetSearch(savedSearch)
+
+    if not displayIndex then return false end
+    C_MountJournal.Pickup(displayIndex)
+    return true
+end
+
 -- Pickup the correct cursor item for a saved slot record.
 -- Returns true if a pickup was attempted (cursor state determines success).
 local function PickupSavedAction(record)
@@ -120,13 +192,15 @@ local function PickupSavedAction(record)
         C_Spell.PickupSpell(id)
         return true
     elseif actionType == "summonmount" then
-        -- id is a stable mount spell ID (0 = random favorite).
+        -- id == 0: random favorite mount.
+        -- id > 0: spellID of the specific mount summon spell (from C_ActionBar.GetSpell).
+        --         C_Spell.PickupSpell does not work for mounts in current retail;
+        --         use PickupMountBySpellID which goes through C_MountJournal.Pickup.
         if id == 0 then
             C_MountJournal.Pickup(0)
             return true
         end
-        C_Spell.PickupSpell(id)
-        return true
+        return PickupMountBySpellID(id)
     elseif actionType == "item" then
         PickupItem(id)
         return true
@@ -241,6 +315,9 @@ function SharedBars:DisableBar(barIndex)
 end
 
 -- Restore all enabled bars.  Defers if in combat.
+-- restoringBars is expected to be true when called from TriggerRestore.
+-- It is cleared here after all bars are restored so live-edit snapshots
+-- are re-enabled once we are done writing to the slots.
 function SharedBars:RestoreAllEnabled()
     if InCombatLockdown() then
         pendingRestore = true
@@ -254,11 +331,13 @@ function SharedBars:RestoreAllEnabled()
             self:RestoreBar(barIndex)
         end
     end
+
+    restoringBars = false
 end
 
 -- ── Event handling ────────────────────────────────────────────────────────────
 --
--- Two triggers:
+-- Three triggers:
 --
 -- 1. PLAYER_TALENT_UPDATE — fires on spec changes. Skip first fire (login).
 --    Updates cached config ID so TRAIT_CONFIG_UPDATED doesn't double-fire.
@@ -266,13 +345,20 @@ end
 -- 2. TRAIT_CONFIG_UPDATED — fires on loadout switches AND talent node spends.
 --    Only acts if the saved config ID changed (= loadout switch).
 --
--- Both events fire together on spec changes, so TriggerRestore is debounced:
--- multiple calls within the same frame schedule only one 0.5s restore timer.
+-- 3. ACTIONBAR_SLOT_CHANGED — fires whenever the player edits any slot (add,
+--    remove, move). If the changed slot belongs to an enabled shared bar we
+--    re-snapshot that bar so the edit is persisted and survives the next
+--    loadout/spec switch. Suppressed while RestoreBar is running.
+--
+-- Both PLAYER_TALENT_UPDATE and TRAIT_CONFIG_UPDATED can fire together on a
+-- spec change, so TriggerRestore is debounced: multiple calls within the same
+-- frame schedule only one 0.5s restore timer.
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("TRAIT_CONFIG_UPDATED")
 frame:RegisterEvent("PLAYER_TALENT_UPDATE")
 frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+frame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
 
 local baselineSet       = false  -- guards the first PLAYER_TALENT_UPDATE on login
 local lastSavedConfigID = nil    -- last known saved loadout config ID
@@ -286,12 +372,33 @@ end
 
 -- Schedule a deferred restore (0.5s lets WoW finish applying the loadout).
 -- Debounced: multiple calls before the timer fires only schedule one restore.
+-- Also sets restoringBars immediately so that ACTION_BAR_SLOT_CHANGED events
+-- fired by WoW while it rewrites bars for the new spec/loadout don't corrupt
+-- the stored snapshot before we get a chance to restore it.
 local function TriggerRestore()
     if restorePending then return end
-    restorePending = true
+    restorePending  = true
+    restoringBars   = true
     C_Timer.After(0.5, function()
         restorePending = false
         SharedBars:RestoreAllEnabled()
+    end)
+end
+
+-- Debounced re-snapshot for a single bar after a live edit.
+-- Uses a 0.1s defer so that rapid multi-slot operations (e.g. drag-swap
+-- between two slots on the same bar) only generate one snapshot write.
+local function TriggerSnapshotBar(barIndex)
+    if pendingSnapshots[barIndex] then return end
+    pendingSnapshots[barIndex] = true
+    C_Timer.After(0.1, function()
+        pendingSnapshots[barIndex] = nil
+        -- Re-check: bar may have been disabled between the edit and the timer.
+        local db    = GetDB()
+        local entry = db.bars[barIndex]
+        if entry and entry.enabled then
+            SharedBars:SnapshotBar(barIndex)
+        end
     end)
 end
 
@@ -320,7 +427,23 @@ frame:SetScript("OnEvent", function(_, event, ...)
     elseif event == "PLAYER_REGEN_ENABLED" then
         if pendingRestore then
             pendingRestore = false
+            restoringBars  = true
             SharedBars:RestoreAllEnabled()
         end
+
+    elseif event == "ACTIONBAR_SLOT_CHANGED" then
+        -- Suppress during restore to avoid overwriting the snapshot with the
+        -- spec-specific layout we are in the process of replacing.
+        if restoringBars then return end
+
+        local slot     = ...
+        local barIndex = SLOT_TO_BAR[slot]
+        if not barIndex then return end
+
+        local db    = GetDB()
+        local entry = db.bars[barIndex]
+        if not (entry and entry.enabled) then return end
+
+        TriggerSnapshotBar(barIndex)
     end
 end)
