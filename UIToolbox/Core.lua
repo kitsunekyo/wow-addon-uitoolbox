@@ -24,7 +24,10 @@ local DEFAULTS = {
     },
     -- PersonalResourceDisplay: bar styling
     personalResourceDisplay = {
-        enabled = true,
+        enabled         = true,
+        hideHealthBar   = false,
+        hideClassResources = false,
+        restylePowerBar = false,
     },
     -- ActionBars: SharedBars
     -- bars[barIndex] = { enabled = bool, slots = { [n] = { type = "spell"|"item"|"macro"|"equipmentset", id = number } } }

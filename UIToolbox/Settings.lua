@@ -141,11 +141,84 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         end
     )
 
-    Settings.CreateCheckbox(
+    local prdEnabledInitializer = Settings.CreateCheckbox(
         category,
         prdEnabledSetting,
-        "Hides the personal-resource health bar and restyles the power bar."
+        "Master toggle for Personal Resource Display customisations. " ..
+        "Individual options below have no effect when this is disabled."
     )
+
+    local prdHideHealthSetting = Settings.RegisterProxySetting(
+        category,
+        "UITOOLBOX_PRD_HIDE_HEALTH_BAR",
+        Settings.VarType.Boolean,
+        "Hide health bar",
+        false,
+        function() return UIToolbox.db.personalResourceDisplay.hideHealthBar end,
+        function(value)
+            UIToolbox.db.personalResourceDisplay.hideHealthBar = value
+            if UIToolboxPersonalResourceDisplayModule then
+                UIToolboxPersonalResourceDisplayModule:ApplyToCurrentPlayerNameplate()
+            end
+        end
+    )
+    local prdHideHealthInitializer = Settings.CreateCheckbox(
+        category,
+        prdHideHealthSetting,
+        "Hides the health bar from the Personal Resource Display."
+    )
+    prdHideHealthInitializer:SetParentInitializer(prdEnabledInitializer, function()
+        return UIToolbox.db.personalResourceDisplay.enabled
+    end)
+
+    local prdHideClassResourcesSetting = Settings.RegisterProxySetting(
+        category,
+        "UITOOLBOX_PRD_HIDE_CLASS_RESOURCES",
+        Settings.VarType.Boolean,
+        "Hide duplicate class resources",
+        false,
+        function() return UIToolbox.db.personalResourceDisplay.hideClassResources end,
+        function(value)
+            UIToolbox.db.personalResourceDisplay.hideClassResources = value
+            if UIToolboxPersonalResourceDisplayModule then
+                UIToolboxPersonalResourceDisplayModule:ApplyToCurrentPlayerNameplate()
+            end
+        end
+    )
+    local prdHideClassResourcesInitializer = Settings.CreateCheckbox(
+        category,
+        prdHideClassResourcesSetting,
+        "Hides class resource frames below the player unit frame " ..
+        "(runes, holy power, combo points, soul shards, chi, arcane charges, essence orbs)."
+    )
+    prdHideClassResourcesInitializer:SetParentInitializer(prdEnabledInitializer, function()
+        return UIToolbox.db.personalResourceDisplay.enabled
+    end)
+
+    local prdRestylePowerBarSetting = Settings.RegisterProxySetting(
+        category,
+        "UITOOLBOX_PRD_RESTYLE_POWER_BAR",
+        Settings.VarType.Boolean,
+        "Restyle bars",
+        false,
+        function() return UIToolbox.db.personalResourceDisplay.restylePowerBar end,
+        function(value)
+            UIToolbox.db.personalResourceDisplay.restylePowerBar = value
+            if UIToolboxPersonalResourceDisplayModule then
+                UIToolboxPersonalResourceDisplayModule:ApplyToCurrentPlayerNameplate()
+            end
+        end
+    )
+    local prdRestylePowerBarInitializer = Settings.CreateCheckbox(
+        category,
+        prdRestylePowerBarSetting,
+        "Applies a clean look to both the health bar and power bar: uses the RaidFrame health fill texture " ..
+        "(Interface\\RaidFrame\\Raid-Bar-Hp-Fill), reduces height to 10px, and replaces " ..
+        "the rounded Blizzard border with a thin 1px pixel border."
+    )
+    prdRestylePowerBarInitializer:SetParentInitializer(prdEnabledInitializer, function()
+        return UIToolbox.db.personalResourceDisplay.enabled
+    end)
 
     -- ----------------------------------------------------------------
     -- Action Bars — Shared Bars
