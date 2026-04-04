@@ -22,6 +22,34 @@ local function GetFrame()
     return _G.PersonalResourceDisplayFrame
 end
 
+-- All class-specific resource frames that sit below PlayerFrame as separate widgets.
+-- These are hidden when custom bars are enabled so they don't overlap the PRD.
+-- Frames embedded inside PlayerFrame (e.g. MonkStaggerBar, InsanityBarFrame) are
+-- intentionally excluded — they overlay the mana bar area, not a separate widget.
+local CLASS_RESOURCE_FRAMES = {
+    "RuneFrame",              -- Death Knight  (runes)
+    "WarlockPowerFrame",      -- Warlock       (soul shards)
+    "PaladinPowerBarFrame",   -- Paladin       (holy power)
+    "RogueComboPointBarFrame",-- Rogue         (combo points)
+    "DruidComboPointBarFrame",-- Druid         (combo points in cat form)
+    "MonkHarmonyBarFrame",    -- Monk WW       (chi orbs)
+    "MageArcaneChargesFrame", -- Mage Arcane   (arcane charges)
+    "EssencePlayerFrame",     -- Evoker        (essence orbs)
+}
+
+local function ApplyClassResourceFrameStyle(enabled)
+    for _, frameName in ipairs(CLASS_RESOURCE_FRAMES) do
+        local frame = _G[frameName]
+        if frame then
+            if enabled then
+                frame:Hide()
+            else
+                frame:Show()
+            end
+        end
+    end
+end
+
 local function ApplyHealthStyle(frame, enabled)
     if not frame or not frame.HealthBarsContainer then
         return
@@ -121,6 +149,7 @@ function PersonalResourceDisplay:ApplyToCurrentPlayerNameplate()
     local enabled = IsEnabled()
     ApplyHealthStyle(frame, enabled)
     ApplyPowerStyle(frame, enabled)
+    ApplyClassResourceFrameStyle(enabled)
 end
 
 function PersonalResourceDisplay:TryInstallHooks()
