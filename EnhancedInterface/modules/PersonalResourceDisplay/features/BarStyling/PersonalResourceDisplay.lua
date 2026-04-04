@@ -1,8 +1,8 @@
--- UIToolbox
+-- EnhancedInterface
 -- modules/PersonalResourceDisplay/features/BarStyling/PersonalResourceDisplay.lua
 
 local PersonalResourceDisplay = {}
-UIToolboxPersonalResourceDisplayModule = PersonalResourceDisplay
+EnhancedInterfacePersonalResourceDisplayModule = PersonalResourceDisplay
 
 local POWER_BAR_HEIGHT = 10
 local HEALTH_BAR_HEIGHT = 10
@@ -17,21 +17,21 @@ local originalHealthContainerHeight = nil
 local originalPowerBarHeight = nil
 
 local function IsHideHealthBarEnabled()
-    return UIToolbox.db
-        and UIToolbox.db.personalResourceDisplay
-        and UIToolbox.db.personalResourceDisplay.hideHealthBar
+    return EnhancedInterface.db
+        and EnhancedInterface.db.personalResourceDisplay
+        and EnhancedInterface.db.personalResourceDisplay.hideHealthBar
 end
 
 local function IsHideClassResourcesEnabled()
-    return UIToolbox.db
-        and UIToolbox.db.personalResourceDisplay
-        and UIToolbox.db.personalResourceDisplay.hideClassResources
+    return EnhancedInterface.db
+        and EnhancedInterface.db.personalResourceDisplay
+        and EnhancedInterface.db.personalResourceDisplay.hideClassResources
 end
 
 local function IsRestyleBarsEnabled()
-    return UIToolbox.db
-        and UIToolbox.db.personalResourceDisplay
-        and UIToolbox.db.personalResourceDisplay.restylePowerBar
+    return EnhancedInterface.db
+        and EnhancedInterface.db.personalResourceDisplay
+        and EnhancedInterface.db.personalResourceDisplay.restylePowerBar
 end
 
 local function GetFrame()
@@ -76,7 +76,7 @@ local function ApplyClassResourceFrameStyle()
 end
 
 local function EnsurePowerBarBorder(powerBar)
-    if powerBar.UIToolboxUniformBorder then
+    if powerBar.EnhancedInterfaceUniformBorder then
         return
     end
 
@@ -99,11 +99,11 @@ local function EnsurePowerBarBorder(powerBar)
     border.bottom = bottom
     border.left = left
     border.right = right
-    powerBar.UIToolboxUniformBorder = border
+    powerBar.EnhancedInterfaceUniformBorder = border
 end
 
 local function UpdatePowerBarBorder(powerBar)
-    local border = powerBar.UIToolboxUniformBorder
+    local border = powerBar.EnhancedInterfaceUniformBorder
     if not border then
         return
     end
@@ -209,14 +209,14 @@ local function ApplyPowerStyle(frame)
     if hideHealth then
         EnsurePowerBarBorder(powerBar)
         UpdatePowerBarBorder(powerBar)
-        powerBar.UIToolboxUniformBorder:SetShown(true)
+        powerBar.EnhancedInterfaceUniformBorder:SetShown(true)
         if powerBar.Border then
             powerBar.Border:SetShown(false)
         end
     else
         -- Restore Blizzard border unconditionally (safe even if we never touched it).
-        if powerBar.UIToolboxUniformBorder then
-            powerBar.UIToolboxUniformBorder:Hide()
+        if powerBar.EnhancedInterfaceUniformBorder then
+            powerBar.EnhancedInterfaceUniformBorder:Hide()
         end
         if powerBar.Border then
             powerBar.Border:Show()

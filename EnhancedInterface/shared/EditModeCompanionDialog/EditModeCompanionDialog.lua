@@ -1,8 +1,8 @@
--- UIToolbox
+-- EnhancedInterface
 -- shared/EditModeCompanionDialog/EditModeCompanionDialog.lua
 --
 -- Provides a persistent companion dialog that appears below the Blizzard
--- EditModeSystemSettingsDialog whenever any registered UIToolbox module has
+-- EditModeSystemSettingsDialog whenever any registered EnhancedInterface module has
 -- settings to show for the currently selected Edit Mode system frame.
 --
 -- ── Design ────────────────────────────────────────────────────────────────────
@@ -12,7 +12,7 @@
 --     DialogBorderTranslucentTemplate — the exact same template used by
 --     EditModeSystemSettingsDialog (DiamondMetal nine-slice border +
 --     solid black translucent Bg, no BackdropTemplate needed).
---   • Modules register "providers" via UIToolbox.EditModeCompanion.Register().
+--   • Modules register "providers" via EnhancedInterface.EditModeCompanion.Register().
 --     A provider is a table:
 --       {
 --           filter(systemFrame) → bool   -- return true if this provider has
@@ -52,8 +52,8 @@ local TITLE_OFFSET_Y      = -15   -- same as EditModeSystemSettingsDialog Title 
 
 -- ── Module namespace ──────────────────────────────────────────────────────────
 
-UIToolbox.EditModeCompanion = UIToolbox.EditModeCompanion or {}
-local Companion = UIToolbox.EditModeCompanion
+EnhancedInterface.EditModeCompanion = EnhancedInterface.EditModeCompanion or {}
+local Companion = EnhancedInterface.EditModeCompanion
 
 local providers = {}   -- array of provider tables registered by modules
 
@@ -130,7 +130,7 @@ local function GetOrCreateDialog()
     if dialog then return dialog end
 
     -- Plain frame — styling comes from the Border child, not BackdropTemplate.
-    local d = CreateFrame("Frame", "UIToolboxEditModeCompanionDialog", UIParent)
+    local d = CreateFrame("Frame", "EnhancedInterfaceEditModeCompanionDialog", UIParent)
     d:SetFrameStrata("DIALOG")
     d:SetFrameLevel(200)   -- same level as EditModeSystemSettingsDialog
     d:Hide()
@@ -145,7 +145,7 @@ local function GetOrCreateDialog()
     -- Title — GameFontHighlightLarge matches EditModeSystemSettingsDialog
     local title = d:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
     title:SetPoint("TOP", d, "TOP", 0, TITLE_OFFSET_Y)
-    title:SetText("UIToolbox")
+    title:SetText("EnhancedInterface")
     d.Title = title
 
     -- Thin divider line under the title (same texture Blizzard uses)

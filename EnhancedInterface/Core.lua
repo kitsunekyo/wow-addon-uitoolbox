@@ -1,7 +1,7 @@
--- UIToolbox
+-- Enhanced Interface
 -- Core.lua: Addon initialization, SavedVariables, and event dispatch.
 
-local ADDON_NAME = "UIToolbox"
+local ADDON_NAME = "EnhancedInterface"
 
 -- Default settings. Merged with SavedVariables on load so new keys are always present.
 local DEFAULTS = {
@@ -55,45 +55,45 @@ end
 -- Addon frame and event dispatch
 -- ============================================================
 
-local UIToolbox = CreateFrame("Frame", ADDON_NAME)
-_G[ADDON_NAME] = UIToolbox
+local EnhancedInterface = CreateFrame("Frame", ADDON_NAME)
+_G[ADDON_NAME] = EnhancedInterface
 
-UIToolbox.modules = {}
+EnhancedInterface.modules = {}
 
 -- Register a module to receive OnZoneChanged calls.
 -- module must have an OnZoneChanged(inInstance, instanceType) method.
-function UIToolbox:RegisterModule(module)
+function EnhancedInterface:RegisterModule(module)
     table.insert(self.modules, module)
 end
 
 -- Internal event handler -- dispatches to named methods on self.
-UIToolbox:SetScript("OnEvent", function(self, event, ...)
+EnhancedInterface:SetScript("OnEvent", function(self, event, ...)
     if self[event] then
         self[event](self, ...)
     end
 end)
 
-UIToolbox:RegisterEvent("ADDON_LOADED")
+EnhancedInterface:RegisterEvent("ADDON_LOADED")
 
-function UIToolbox:ADDON_LOADED(addonName)
+function EnhancedInterface:ADDON_LOADED(addonName)
     if addonName ~= ADDON_NAME then return end
 
     -- Initialize SavedVariables and apply defaults for any missing keys.
-    UIToolboxDB = UIToolboxDB or {}
+    EnhancedInterfaceDB = EnhancedInterfaceDB or {}
 
     -- Migrate legacy key name used before this became an ObjectivesTracker feature.
-    if UIToolboxDB.objectivesTrackerDamageMeter == nil and UIToolboxDB.trackerEmbed ~= nil then
-        UIToolboxDB.objectivesTrackerDamageMeter = CopyTable(UIToolboxDB.trackerEmbed)
+    if EnhancedInterfaceDB.objectivesTrackerDamageMeter == nil and EnhancedInterfaceDB.trackerEmbed ~= nil then
+        EnhancedInterfaceDB.objectivesTrackerDamageMeter = CopyTable(EnhancedInterfaceDB.trackerEmbed)
     end
 
-    ApplyDefaults(UIToolboxDB, DEFAULTS)
-    self.db = UIToolboxDB
+    ApplyDefaults(EnhancedInterfaceDB, DEFAULTS)
+    self.db = EnhancedInterfaceDB
 
     self:UnregisterEvent("ADDON_LOADED")
     self:RegisterEvent("PLAYER_ENTERING_WORLD")
 end
 
-function UIToolbox:PLAYER_ENTERING_WORLD()
+function EnhancedInterface:PLAYER_ENTERING_WORLD()
     local inInstance, instanceType = IsInInstance()
     for _, module in ipairs(self.modules) do
         if module.OnZoneChanged then

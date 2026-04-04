@@ -34,8 +34,8 @@ The canonical source of truth is the WSL2 workspace:
 
 The WoW installation directory is a **deploy target only** — never touch it directly:
 ```
-C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\UIToolbox\   ← DEPLOY TARGET — DO NOT TOUCH
-/mnt/c/Program Files (x86)/World of Warcraft/_retail_/Interface/AddOns/UIToolbox/   ← SAME PATH — DO NOT TOUCH
+C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\EnhancedInterface\   ← DEPLOY TARGET — DO NOT TOUCH
+/mnt/c/Program Files (x86)/World of Warcraft/_retail_/Interface/AddOns/EnhancedInterface/   ← SAME PATH — DO NOT TOUCH
 ```
 
 ### MANDATORY: Deploying changes
@@ -71,7 +71,7 @@ Reference documents accumulated during development. Consult these before researc
 
 - [Attaching Buttons to Blizzard Frames](knowledge/attaching-buttons-to-blizzard-frames.md) — how to inject custom buttons into Blizzard frames, atlas texture usage, accessing frame children, idempotency, and hooking late-created windows
 - [Edit Mode and Injected Buttons](knowledge/edit-mode-and-injected-buttons.md) — how Edit Mode dragging affects injected buttons, primary vs secondary damage meter windows, `ApplyLayoutToFrame` hook pattern
-- [Taint and Secure Execution](knowledge/taint-and-secure-execution.md) — how taint spreads, protected functions, `hooksecurefunc` vs `HookScript`, combat lockdown guards, `AllowedWhenUntainted` APIs, debugging taint errors, and UIToolbox-specific risk areas
+- [Taint and Secure Execution](knowledge/taint-and-secure-execution.md) — how taint spreads, protected functions, `hooksecurefunc` vs `HookScript`, combat lockdown guards, `AllowedWhenUntainted` APIs, debugging taint errors, and EnhancedInterface-specific risk areas
 - [Tabs and Panels](knowledge/tabs-and-panels.md) — `PanelTabButtonTemplate`, `PanelTemplates_*` helpers, tab naming convention, scrollable panels, and `UIPanelScrollFrameTemplate`
 - [Buttons and Interactions](knowledge/buttons-and-interactions.md) — button templates, click scripts, enable/disable, atlas textures, tooltip-on-hover pattern, context menus via `MenuUtil`, and combat lockdown notes
 - [Custom Frames and Borders](knowledge/custom-frames-and-borders.md) — `BackdropTemplate`, `SetBackdrop`, pre-defined backdrop tables, standard frame templates, movable/resizable frames, frame strata, and saving position

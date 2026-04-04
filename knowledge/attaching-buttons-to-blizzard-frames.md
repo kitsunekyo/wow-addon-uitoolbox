@@ -158,6 +158,6 @@ padding and text layers.
 
 ## See Also
 
-- `UIToolbox/Modules/DamageMeterButton.lua` — reference implementation used in this addon
+- `EnhancedInterface/Modules/DamageMeterButton.lua` — reference implementation used in this addon
 - [UIOBJECT Button — warcraft.wiki.gg](https://warcraft.wiki.gg/wiki/UIOBJECT_Button)
 - [Gethe/wow-ui-source — Blizzard_DamageMeter](https://github.com/Gethe/wow-ui-source/tree/live/Interface/AddOns/Blizzard_DamageMeter)

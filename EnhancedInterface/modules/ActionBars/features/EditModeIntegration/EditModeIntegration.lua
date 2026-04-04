@@ -1,8 +1,8 @@
--- UIToolbox
+-- EnhancedInterface
 -- modules/ActionBars/features/EditModeIntegration/EditModeIntegration.lua
 --
 -- Registers the "Shared Bar" setting with the shared EditModeCompanionDialog
--- so it appears in the "UIToolbox" companion panel when the player selects a
+-- so it appears in the "EnhancedInterface" companion panel when the player selects a
 -- supported action bar in Edit Mode.
 --
 -- ── Bar index mapping ──────────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ local SYSTEM_INDEX_TO_BAR_INDEX = {
     [8] = 8,  -- ExtraBar3 (MultiBar7)
 }
 
-UIToolbox.EditModeCompanion.Register({
+EnhancedInterface.EditModeCompanion.Register({
     filter = function(systemFrame)
         if systemFrame.system ~= Enum.EditModeSystem.ActionBar then return false end
         return SYSTEM_INDEX_TO_BAR_INDEX[systemFrame.systemIndex] ~= nil
@@ -49,14 +49,14 @@ UIToolbox.EditModeCompanion.Register({
                 tooltip = "Keeps this bar's buttons the same across all talent loadouts. " ..
                           "Enabling takes a snapshot of the current layout.",
                 get = function()
-                    local db = UIToolbox.db.sharedBars.bars[barIndex]
+                    local db = EnhancedInterface.db.sharedBars.bars[barIndex]
                     return db ~= nil and db.enabled == true
                 end,
                 set = function(value)
                     if value then
-                        UIToolbox.SharedBars:EnableBar(barIndex)
+                        EnhancedInterface.SharedBars:EnableBar(barIndex)
                     else
-                        UIToolbox.SharedBars:DisableBar(barIndex)
+                        EnhancedInterface.SharedBars:DisableBar(barIndex)
                     end
                 end,
             },

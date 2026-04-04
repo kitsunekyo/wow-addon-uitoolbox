@@ -1,7 +1,7 @@
--- UIToolbox
+-- Enhanced Interface
 -- Settings.lua: Registers the addon settings panel in the WoW Settings UI.
 
-local ADDON_NAME = "UIToolbox"
+local ADDON_NAME = "EnhancedInterface"
 
 -- Creates a non-collapsible section header initializer.
 --
@@ -22,7 +22,7 @@ end
 
 EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
     -- Top-level category in the AddOns section of the Settings panel.
-    local category = Settings.RegisterVerticalLayoutCategory("UIToolbox")
+    local category = Settings.RegisterVerticalLayoutCategory("EnhancedInterface")
 
     -- ----------------------------------------------------------------
     -- Objective Tracker — Auto-Collapse
@@ -35,8 +35,8 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         Settings.VarType.Boolean,
         "Auto-collapse in instances",
         false,
-        function() return UIToolbox.db.autoCollapse.enabled end,
-        function(value) UIToolbox.db.autoCollapse.enabled = value end
+        function() return EnhancedInterface.db.autoCollapse.enabled end,
+        function(value) EnhancedInterface.db.autoCollapse.enabled = value end
     )
     Settings.CreateCheckbox(
         category,
@@ -59,8 +59,8 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
             Settings.VarType.Boolean,
             entry.label,
             true,
-            function() return UIToolbox.db.autoCollapse.sections[key] end,
-            function(value) UIToolbox.db.autoCollapse.sections[key] = value end
+            function() return EnhancedInterface.db.autoCollapse.sections[key] end,
+            function(value) EnhancedInterface.db.autoCollapse.sections[key] = value end
         )
         Settings.CreateCheckbox(category, setting, nil)
     end
@@ -76,10 +76,10 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         Settings.VarType.Boolean,
         "Show in Objective Tracker",
         false,
-        function() return UIToolbox.db.objectivesTrackerDamageMeter.enabled end,
+        function() return EnhancedInterface.db.objectivesTrackerDamageMeter.enabled end,
         function(value)
-            UIToolbox.db.objectivesTrackerDamageMeter.enabled = value
-            if UIToolboxObjectivesTrackerDamageMeterModule then
+            EnhancedInterface.db.objectivesTrackerDamageMeter.enabled = value
+            if EnhancedInterfaceObjectivesTrackerDamageMeterModule then
                 ObjectiveTrackerManager:UpdateAll()
             end
         end
@@ -101,9 +101,9 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         Settings.VarType.Number,
         "Scale Fine-Tune",
         1.0,
-        function() return UIToolbox.db.nameplateScale.factor end,
+        function() return EnhancedInterface.db.nameplateScale.factor end,
         function(value)
-            UIToolbox.NameplateScale:SetFactor(value)
+            EnhancedInterface.NameplateScale:SetFactor(value)
         end
     )
 
@@ -150,14 +150,14 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
             "Share " .. def.label,
             false,
             function()
-                local entry = UIToolbox.db.sharedBars.bars[barIndex]
+                local entry = EnhancedInterface.db.sharedBars.bars[barIndex]
                 return entry ~= nil and entry.enabled == true
             end,
             function(value)
                 if value then
-                    UIToolbox.SharedBars:EnableBar(barIndex)
+                    EnhancedInterface.SharedBars:EnableBar(barIndex)
                 else
-                    UIToolbox.SharedBars:DisableBar(barIndex)
+                    EnhancedInterface.SharedBars:DisableBar(barIndex)
                 end
             end
         )
@@ -172,5 +172,5 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
     -- Always the last call -- registers the category into the Settings panel.
     Settings.RegisterAddOnCategory(category)
 
-    UIToolbox.settingsCategory = category
+    EnhancedInterface.settingsCategory = category
 end)

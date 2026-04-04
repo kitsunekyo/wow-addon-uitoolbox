@@ -1,4 +1,4 @@
--- UIToolbox
+-- EnhancedInterface
 -- modules/ObjectivesTracker/features/DamageMeterEmbed/DamageMeterEmbed.lua
 --
 -- Adds a Damage Meter feature module to the "All Objectives" tracker.
@@ -33,23 +33,23 @@ local DAMAGE_TYPE_HEADER_FONT_DELTA = 1
 -- Mixin
 -- ---------------------------------------------------------------------------
 
-local UIToolboxObjectivesTrackerDamageMeterModuleMixin = CreateFromMixins(ObjectiveTrackerModuleMixin)
+local EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin = CreateFromMixins(ObjectiveTrackerModuleMixin)
 
-function UIToolboxObjectivesTrackerDamageMeterModuleMixin:InitModule()
+function EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin:InitModule()
     -- Register damage-meter events so we can refresh when combat data changes.
     self:RegisterEvent("DAMAGE_METER_COMBAT_SESSION_UPDATED")
     self:RegisterEvent("DAMAGE_METER_RESET")
     self:RegisterEvent("DAMAGE_METER_CURRENT_SESSION_UPDATED")
 end
 
-function UIToolboxObjectivesTrackerDamageMeterModuleMixin:OnEvent(event, ...)
+function EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin:OnEvent(event, ...)
     self:MarkDirty()
 end
 
 -- Returns true when the embed feature is enabled and the damage meter addon loaded.
 local function ShouldEmbed()
-    return UIToolbox.db.objectivesTrackerDamageMeter
-       and UIToolbox.db.objectivesTrackerDamageMeter.enabled
+    return EnhancedInterface.db.objectivesTrackerDamageMeter
+       and EnhancedInterface.db.objectivesTrackerDamageMeter.enabled
        and (DamageMeter ~= nil)
 end
 
@@ -102,7 +102,7 @@ local function RefreshEmbeddedStyleState(sessionWindow)
 end
 
 -- Called by the container every time the tracker repaints.
-function UIToolboxObjectivesTrackerDamageMeterModuleMixin:LayoutContents()
+function EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin:LayoutContents()
     if not ShouldEmbed() then
         -- Feature off: clear any reserved height and hide the session window embed.
         self:ClearHeightModifier("damageMeter")
@@ -145,7 +145,7 @@ function UIToolboxObjectivesTrackerDamageMeterModuleMixin:LayoutContents()
 end
 
 -- Reparent and anchor DamageMeterSessionWindow1 inside our ContentsFrame.
-function UIToolboxObjectivesTrackerDamageMeterModuleMixin:EmbedSessionWindow()
+function EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin:EmbedSessionWindow()
     if InCombatLockdown() then return end
 
     local sessionWindow = GetSessionWindow()
@@ -184,7 +184,7 @@ function UIToolboxObjectivesTrackerDamageMeterModuleMixin:EmbedSessionWindow()
 end
 
 -- Restore DamageMeterSessionWindow1 to its original parent and position.
-function UIToolboxObjectivesTrackerDamageMeterModuleMixin:DetachSessionWindow()
+function EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin:DetachSessionWindow()
     if InCombatLockdown() then return end
 
     local sessionWindow = GetSessionWindow()
@@ -213,12 +213,12 @@ end
 
 local frame = CreateFrame(
     "Frame",
-    "UIToolboxObjectivesTrackerDamageMeterModule",
+    "EnhancedInterfaceObjectivesTrackerDamageMeterModule",
     ObjectiveTrackerFrame,
     "ObjectiveTrackerModuleTemplate"
 )
 
-Mixin(frame, UIToolboxObjectivesTrackerDamageMeterModuleMixin)
+Mixin(frame, EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin)
 
 -- headerText must be set before SetHeader() is called, but OnLoad() already
 -- ran during CreateFrame with headerText=nil. Call SetHeader() explicitly now
@@ -306,9 +306,9 @@ local function TryRegister()
     -- Assign uiOrder here (just before registration) so the value is present
     -- when needed, but note it is still addon-tainted.
     -- Sit below all built-in modules (their uiOrder values are 1–11).
-    UIToolboxObjectivesTrackerDamageMeterModule.uiOrder = 100
+    EnhancedInterfaceObjectivesTrackerDamageMeterModule.uiOrder = 100
 
-    ObjectiveTrackerManager:SetModuleContainer(UIToolboxObjectivesTrackerDamageMeterModule, ObjectiveTrackerFrame)
+    ObjectiveTrackerManager:SetModuleContainer(EnhancedInterfaceObjectivesTrackerDamageMeterModule, ObjectiveTrackerFrame)
 
     C_Timer.After(0, function()
         ObjectiveTrackerManager:UpdateAll()
@@ -341,7 +341,7 @@ local function HookEditMode()
         if systemFrame == DamageMeter then
             C_Timer.After(0, function()
                 if ShouldEmbed() then
-                    UIToolboxObjectivesTrackerDamageMeterModule:EmbedSessionWindow()
+                    EnhancedInterfaceObjectivesTrackerDamageMeterModule:EmbedSessionWindow()
                 end
             end)
         end

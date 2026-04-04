@@ -1,4 +1,4 @@
--- UIToolbox
+-- EnhancedInterface
 -- modules/Nameplates/features/NameplateScale/NameplateScale.lua
 --
 -- Fine-grained nameplate scale control.
@@ -28,10 +28,10 @@
 -- correction is applied once per UpdateNamePlateOptions cycle via a hook on the
 -- driver mixin.
 --
--- The factor is stored per-character in UIToolboxDB.nameplateScale.factor.
+-- The factor is stored per-character in EnhancedInterfaceDB.nameplateScale.factor.
 
 local NameplateScale = {}
-UIToolbox.NameplateScale = NameplateScale
+EnhancedInterface.NameplateScale = NameplateScale
 
 -- ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -47,7 +47,7 @@ local seenFrames = setmetatable({}, { __mode = "k" })
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
 local function GetFactor()
-    local factor = tonumber(UIToolbox.db.nameplateScale.factor)
+    local factor = tonumber(EnhancedInterface.db.nameplateScale.factor)
     if not factor or factor <= 0 then
         return DEFAULT_FACTOR
     end
@@ -106,13 +106,13 @@ function NameplateScale:SetFactor(factor)
         normalized = DEFAULT_FACTOR
     end
 
-    UIToolbox.db.nameplateScale.factor = normalized
+    EnhancedInterface.db.nameplateScale.factor = normalized
     ScaleAllSeen()
     CorrectContainerWidth()
 end
 
 function NameplateScale:GetFactor()
-    return UIToolbox.db.nameplateScale.factor or DEFAULT_FACTOR
+    return EnhancedInterface.db.nameplateScale.factor or DEFAULT_FACTOR
 end
 
 -- ── Initialization ────────────────────────────────────────────────────────────

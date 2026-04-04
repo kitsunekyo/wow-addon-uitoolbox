@@ -8,7 +8,7 @@ Taint is one of the most important concepts in WoW addon development. Getting it
 causes **protected functions to silently fail or error**, typically in combat — right when
 the player needs the UI most. The damage is permanent until a UI reload.
 
-For UIToolbox specifically: because we inject buttons into and hook Blizzard frames, we
+For EnhancedInterface specifically: because we inject buttons into and hook Blizzard frames, we
 are in frequent proximity to the protected-function boundary. Understanding taint prevents
 us from accidentally breaking Blizzard's UI for the player.
 
@@ -63,7 +63,7 @@ Both must be handled correctly.
 Many API functions are annotated `AllowedWhenUntainted` in the API documentation. This
 means they **return nil or silently fail when called from tainted (addon) code**.
 
-Known examples relevant to UIToolbox:
+Known examples relevant to EnhancedInterface:
 
 - `C_NamePlate.GetNamePlates()` — returns `nil` from addon code
 - `C_NamePlate.GetNamePlateForUnit()` — returns `nil` from addon code
@@ -167,11 +167,11 @@ When a protected function is blocked by taint, WoW prints an error like:
 Action blocked because of taint from <AddonName> - <function>
 ```
 
-The error identifies the addon responsible. In our error messages, it will say `UIToolbox`.
+The error identifies the addon responsible. In our error messages, it will say `EnhancedInterface`.
 
 ---
 
-## Relevance to UIToolbox
+## Relevance to EnhancedInterface
 
 ### Current code — what we're doing right
 

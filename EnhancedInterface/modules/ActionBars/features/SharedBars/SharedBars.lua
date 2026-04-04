@@ -1,11 +1,11 @@
--- UIToolbox
+-- EnhancedInterface
 -- modules/ActionBars/features/SharedBars/SharedBars.lua
 --
 -- Shared Action Bars: keeps selected action bars identical across all talent
 -- loadouts / specs.
 --
 -- When a bar is enabled, a snapshot of its current button assignments is saved
--- to UIToolboxDB. On every loadout switch, all enabled bars are restored from
+-- to EnhancedInterfaceDB. On every loadout switch, all enabled bars are restored from
 -- their snapshots after a short defer to let WoW finish applying the loadout.
 --
 -- ── Trigger detection ──────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@
 -- companion.  flyout is skipped (no safe pickup API).
 
 local SharedBars = {}
-UIToolbox.SharedBars = SharedBars
+EnhancedInterface.SharedBars = SharedBars
 
 -- ── Bar definitions ────────────────────────────────────────────────────────────
 -- Keys are WoW Action Bar numbers (1–8). Bar 1 has two pages; the second page
@@ -116,7 +116,7 @@ local pendingSnapshots  = {}     -- barIndex → true; set by debounce, cleared 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
 local function GetDB()
-    return UIToolbox.db.sharedBars
+    return EnhancedInterface.db.sharedBars
 end
 
 -- Ensure the bar entry exists in db.

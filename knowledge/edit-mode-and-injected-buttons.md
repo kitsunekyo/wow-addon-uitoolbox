@@ -111,7 +111,7 @@ hierarchy handles this natively.
 
 ## See Also
 
-- `UIToolbox/Modules/DamageMeterDrag.lua` — position override with `ApplyLayoutToFrame` hook
-- `UIToolbox/Modules/DamageMeterButton.lua` — button injection reference implementation
+- `EnhancedInterface/Modules/DamageMeterDrag.lua` — position override with `ApplyLayoutToFrame` hook
+- `EnhancedInterface/Modules/DamageMeterButton.lua` — button injection reference implementation
 - [Edit Mode — warcraft.wiki.gg](https://warcraft.wiki.gg/wiki/Edit_Mode)
 - [Blizzard_DamageMeter/DamageMeter.lua](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_DamageMeter/DamageMeter.lua)

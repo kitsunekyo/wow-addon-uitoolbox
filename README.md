@@ -1,4 +1,4 @@
-# UIToolbox
+# Enhanced Interface
 
 A personal World of Warcraft addon that improves the default UI with a collection of focused quality-of-life tools.
 
@@ -18,24 +18,24 @@ Automatically collapses Objective Tracker sections when entering any instance (d
 **Behavior:**
 - On instance entry: snapshots the current collapse state of each section, then collapses the enabled ones.
 - On instance exit: restores each section exactly as it was before you entered.
-- Configurable per-section via `UIToolboxDB.trackerCollapse.sections`.
+- Configurable per-section via `EnhancedInterfaceDB.trackerCollapse.sections`.
 
 ## Development
 
 ### File structure
 
 ```
-UIToolbox/
-├── UIToolbox.toc               TOC file (Interface version, dependencies, file list)
+EnhancedInterface/
+├── EnhancedInterface.toc               TOC file (Interface version, dependencies, file list)
 ├── Core.lua                    Addon init, SavedVariables, module registry, event dispatch
 └── Modules/
     └── TrackerCollapse.lua     Auto-collapse tracker sections on instance entry
-sync.sh                         Copies UIToolbox/ to the WoW AddOns folder
+sync.sh                         Copies EnhancedInterface/ to the WoW AddOns folder
 ```
 
 ### Iteration loop
 
-1. Make changes to files in `UIToolbox/`
+1. Make changes to files in `EnhancedInterface/`
 2. Run `./sync.sh` from WSL to copy files to the WoW AddOns directory
 3. Type `/reload` in WoW to reload the UI
 
@@ -45,13 +45,13 @@ sync.sh                         Copies UIToolbox/ to the WoW AddOns folder
 |---|---|
 | `/etrace` | Event trace — confirm events are firing |
 | `/framestack` | Hover over frames to inspect their names |
-| `/dump UIToolboxDB` | Inspect current SavedVariables state |
+| `/dump EnhancedInterfaceDB` | Inspect current SavedVariables state |
 | `/reload` | Reload the UI after syncing new files |
 
 ### SavedVariables structure
 
 ```lua
-UIToolboxDB = {
+EnhancedInterfaceDB = {
     trackerCollapse = {
         enabled = true,
         sections = {
@@ -66,7 +66,7 @@ UIToolboxDB = {
 To temporarily disable the feature in-game:
 
 ```lua
-/run UIToolbox.db.trackerCollapse.enabled = false
+/run EnhancedInterface.db.trackerCollapse.enabled = false
 ```
 
 ## Dependencies

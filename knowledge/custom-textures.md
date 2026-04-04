@@ -82,11 +82,11 @@ def write_tga(path, pixels, w, h):
 Place textures inside the addon folder under a `textures/` subdirectory:
 
 ```
-UIToolbox/
+EnhancedInterface/
   textures/
     icon-pin.tga
     icon-foo.tga
-  UIToolbox.toc
+  EnhancedInterface.toc
   Core.lua
   ...
 ```
@@ -98,7 +98,7 @@ UIToolbox/
 Use the full virtual path with double backslashes. The file extension **can be omitted** — WoW will try both `.tga` and `.blp`:
 
 ```lua
-local TEXTURE_PIN = "Interface\\AddOns\\UIToolbox\\textures\\icon-pin"
+local TEXTURE_PIN = "Interface\\AddOns\\EnhancedInterface\\textures\\icon-pin"
 
 local tex = frame:CreateTexture(nil, "ARTWORK")
 tex:SetTexture(TEXTURE_PIN)

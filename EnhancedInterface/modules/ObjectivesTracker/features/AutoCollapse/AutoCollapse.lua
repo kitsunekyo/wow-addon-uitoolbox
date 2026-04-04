@@ -1,4 +1,4 @@
--- UIToolbox
+-- EnhancedInterface
 -- modules/ObjectivesTracker/features/AutoCollapse/AutoCollapse.lua
 --
 -- Automatically collapses configured Objective Tracker sections when entering
@@ -20,7 +20,7 @@ local preInstanceState = {}
 local wasInInstance    = false
 
 function AutoCollapse:OnZoneChanged(inInstance, instanceType)
-    local db = UIToolbox.db.autoCollapse
+    local db = EnhancedInterface.db.autoCollapse
     if not db.enabled then return end
 
     local enteringInstance = inInstance and INSTANCE_TYPES[instanceType]
@@ -54,4 +54,4 @@ function AutoCollapse:OnZoneChanged(inInstance, instanceType)
     end
 end
 
-UIToolbox:RegisterModule(AutoCollapse)
+EnhancedInterface:RegisterModule(AutoCollapse)

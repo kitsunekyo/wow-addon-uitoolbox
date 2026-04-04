@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# sync.sh — Sync UIToolbox to the WoW retail AddOns folder.
+# sync.sh — Sync EnhancedInterface to the WoW retail AddOns folder.
 # Removes the destination directory entirely before copying to guarantee
 # no stale files remain. Run from WSL, then /reload in-game.
 
 set -euo pipefail
 
 ADDONS_DIR="/mnt/c/Program Files (x86)/World of Warcraft/_retail_/Interface/AddOns"
-SRC="$(cd "$(dirname "$0")" && pwd)/UIToolbox"
-DEST="$ADDONS_DIR/UIToolbox"
+SRC="$(cd "$(dirname "$0")" && pwd)/EnhancedInterface"
+DEST="$ADDONS_DIR/EnhancedInterface"
 
 # --- Preflight checks -------------------------------------------------------
 
