@@ -22,7 +22,7 @@ end
 
 EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
     -- Top-level category in the AddOns section of the Settings panel.
-    local category = Settings.RegisterVerticalLayoutCategory("EnhancedInterface")
+    local category = Settings.RegisterVerticalLayoutCategory("Enhanced Interface")
 
     -- ----------------------------------------------------------------
     -- Objective Tracker — Auto-Collapse
