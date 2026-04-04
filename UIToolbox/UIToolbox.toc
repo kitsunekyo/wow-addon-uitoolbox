@@ -14,3 +14,4 @@ modules\ObjectivesTracker\features\DamageMeterEmbed\DamageMeterEmbed.lua
 modules\Nameplates\features\NameplateScale\NameplateScale.lua
 modules\PersonalResourceDisplay\features\BarStyling\PersonalResourceDisplay.lua
 modules\ActionBars\features\SharedBars\SharedBars.lua
+modules\ActionBars\features\EditModeIntegration\EditModeIntegration.lua
