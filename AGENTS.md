@@ -77,6 +77,24 @@ Reference documents accumulated during development. Consult these before researc
 - [Custom Frames and Borders](knowledge/custom-frames-and-borders.md) — `BackdropTemplate`, `SetBackdrop`, pre-defined backdrop tables, standard frame templates, movable/resizable frames, frame strata, and saving position
 - [Text and Form Elements](knowledge/text-and-form-elements.md) — `FontString` font objects and methods, `EditBox` (InputBoxTemplate), `CheckButton` (checkbox), `Slider` (UISliderTemplateWithLabels), and the modern `Menu`/`DropdownButton` system
 
+## Tools
+
+### Finding In-Game Textures
+
+To browse available in-game textures and atlas entries for use in the addon, instruct the user to type `/tav` in the WoW chat to open the **TextureAtlasViewer** addon. This lets you search and preview atlas textures by name so you can pick appropriate assets before coding them in.
+
+### Inspecting Frames and Events (DevTool)
+
+When debugging UI layout, frame hierarchy, or event flow, instruct the user to use the **DevTool** addon (`/dev` to toggle its window). Key use cases:
+
+- **Frame stack** — type `/fstack` in WoW chat to highlight the frame under the cursor and show its name/hierarchy. Use this to identify the exact frame name to hook into or parent against.
+- **Event tracing** — type `/etrace` in WoW chat (or use DevTool's Events tab) to monitor fired events in real time. Use this to discover which events fire during a specific action so you know what to register for.
+- **Inspecting tables/globals** — in the DevTool History tab, enter any fully-qualified global name (e.g. `PlayerFrame` or `UIParent`) to explore its fields and child frames interactively.
+- **Logging function calls** — in the DevTool Fn Call Log tab, enter `<function> <parent>` to log calls, arguments, and return values at runtime.
+- **Chat commands**: `/dev help` lists all available commands; `/dev <name>` adds a global to the inspector directly from chat.
+
+Use DevTool whenever you need to identify frame names for injection, verify event names and payloads, or inspect the live state of any global table or frame.
+
 ## Resources
 
 **official battle.net developer docs**
