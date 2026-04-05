@@ -40,6 +40,11 @@ function EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin:InitModule()
     self:RegisterEvent("DAMAGE_METER_COMBAT_SESSION_UPDATED")
     self:RegisterEvent("DAMAGE_METER_RESET")
     self:RegisterEvent("DAMAGE_METER_CURRENT_SESSION_UPDATED")
+
+    -- When the embed is enabled during combat, EmbedSessionWindow() is blocked
+    -- by InCombatLockdown().  MarkDirty() on PLAYER_REGEN_ENABLED re-runs
+    -- LayoutContents(), which re-queues EmbedSessionWindow() once lockdown lifts.
+    self:RegisterEvent("PLAYER_REGEN_ENABLED")
 end
 
 function EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin:OnEvent(event, ...)
