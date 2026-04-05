@@ -55,5 +55,19 @@ EnhancedInterface.EditModeCompanion.Register({
                 end
             end,
         },
+        {
+            type    = "checkbox",
+            label   = "Hide when mounted",
+            tooltip = "Hides the entire Personal Resource Display while you are mounted.",
+            get = function()
+                return EnhancedInterface.db.personalResourceDisplay.hideWhenMounted
+            end,
+            set = function(value)
+                EnhancedInterface.db.personalResourceDisplay.hideWhenMounted = value
+                if EnhancedInterfacePersonalResourceDisplayModule then
+                    EnhancedInterfacePersonalResourceDisplayModule:ApplyMountVisibility()
+                end
+            end,
+        },
     },
 })

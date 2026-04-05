@@ -12,6 +12,7 @@ local DEFAULT_PREDICTION_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
 local DEFAULT_HEALTH_BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
 
 local hooksInstalled = false
+local applyingStyles = false  -- re-entrancy guard for ApplyToCurrentPlayerNameplate
 -- Captured once before the first restyle is applied; used to restore original heights.
 local originalHealthContainerHeight = nil
 local originalPowerBarHeight = nil
@@ -32,6 +33,12 @@ local function IsRestyleBarsEnabled()
     return EnhancedInterface.db
         and EnhancedInterface.db.personalResourceDisplay
         and EnhancedInterface.db.personalResourceDisplay.restylePowerBar
+end
+
+local function IsHideWhenMountedEnabled()
+    return EnhancedInterface.db
+        and EnhancedInterface.db.personalResourceDisplay
+        and EnhancedInterface.db.personalResourceDisplay.hideWhenMounted
 end
 
 local function GetFrame()
@@ -225,14 +232,44 @@ local function ApplyPowerStyle(frame)
 end
 
 function PersonalResourceDisplay:ApplyToCurrentPlayerNameplate()
+    if applyingStyles then
+        return
+    end
+
     local frame = GetFrame()
     if not frame then
         return
     end
 
+    applyingStyles = true
     ApplyHealthStyle(frame)
     ApplyPowerStyle(frame)
     ApplyClassResourceFrameStyle()
+    self:ApplyMountVisibility()
+    applyingStyles = false
+end
+
+function PersonalResourceDisplay:ApplyMountVisibility()
+    local frame = GetFrame()
+    if not frame then
+        return
+    end
+
+    if InCombatLockdown() then
+        -- Cannot call Hide/Show on protected frames mid-combat.
+        -- PLAYER_REGEN_ENABLED will re-invoke this method once combat ends.
+        return
+    end
+
+    if IsHideWhenMountedEnabled() and IsMounted() then
+        frame:Hide()
+    else
+        -- Only call Show() when the frame is actually hidden to avoid interfering
+        -- with Blizzard's own visibility management (e.g. during loading screens).
+        if not frame:IsShown() then
+            frame:Show()
+        end
+    end
 end
 
 function PersonalResourceDisplay:TryInstallHooks()
@@ -244,16 +281,25 @@ function PersonalResourceDisplay:TryInstallHooks()
         return
     end
 
-    hooksecurefunc(PersonalResourceDisplayMixin, "OnShow", function(self)
+    -- Hook all three setup methods so any re-setup by Blizzard (spec change,
+    -- power type change, entering world) immediately re-applies our styling.
+    hooksecurefunc(PersonalResourceDisplayMixin, "OnShow", function()
         PersonalResourceDisplay:ApplyToCurrentPlayerNameplate()
     end)
 
-    hooksecurefunc(PersonalResourceDisplayMixin, "SetupHealthBar", function(self)
+    hooksecurefunc(PersonalResourceDisplayMixin, "SetupHealthBar", function()
         PersonalResourceDisplay:ApplyToCurrentPlayerNameplate()
     end)
 
-    hooksecurefunc(PersonalResourceDisplayMixin, "SetupPowerBar", function(self)
+    hooksecurefunc(PersonalResourceDisplayMixin, "SetupPowerBar", function()
         PersonalResourceDisplay:ApplyToCurrentPlayerNameplate()
+    end)
+
+    -- Hook UpdateShownState so that whenever Blizzard re-evaluates whether the PRD
+    -- should be visible (e.g. entering/leaving combat, zoning), we re-apply our
+    -- mount-hide override immediately after its Show()/Hide() decision.
+    hooksecurefunc(PersonalResourceDisplayMixin, "UpdateShownState", function()
+        PersonalResourceDisplay:ApplyMountVisibility()
     end)
 
     -- Hook HealthBarsContainer:Show directly so any Show() call from Blizzard code
@@ -272,18 +318,33 @@ function PersonalResourceDisplay:TryInstallHooks()
     hooksInstalled = true
 end
 
+-- Install hooks immediately at module-load time.
+-- Blizzard_PersonalResourceDisplay is declared as an OptionalDependency so it is
+-- guaranteed to be loaded before EnhancedInterface; the mixin and frame exist now.
+PersonalResourceDisplay:TryInstallHooks()
+
 local initFrame = CreateFrame("Frame")
-initFrame:RegisterEvent("ADDON_LOADED")
 initFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-initFrame:SetScript("OnEvent", function(_, event, addonName)
-    if event == "ADDON_LOADED" then
-        if addonName == "Blizzard_PersonalResourceDisplay" then
-            PersonalResourceDisplay:TryInstallHooks()
-            PersonalResourceDisplay:ApplyToCurrentPlayerNameplate()
-        end
+initFrame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+initFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+initFrame:SetScript("OnEvent", function(_, event)
+    if event == "PLAYER_MOUNT_DISPLAY_CHANGED" then
+        PersonalResourceDisplay:ApplyMountVisibility()
         return
     end
 
-    PersonalResourceDisplay:TryInstallHooks()
-    PersonalResourceDisplay:ApplyToCurrentPlayerNameplate()
+    if event == "PLAYER_REGEN_ENABLED" then
+        -- Combat just ended; flush any deferred mount-hide/show state.
+        PersonalResourceDisplay:ApplyMountVisibility()
+        return
+    end
+
+    -- PLAYER_ENTERING_WORLD: Blizzard fires its own PRD event handlers before ours
+    -- (SetupPowerBar etc.), so our hooksecurefunc callbacks will have already run.
+    -- We defer one frame via C_Timer.After to guarantee our apply runs after ALL
+    -- Blizzard PLAYER_ENTERING_WORLD handlers for this session are complete,
+    -- preventing any late Blizzard setup from overwriting our textures/heights.
+    C_Timer.After(0, function()
+        PersonalResourceDisplay:ApplyToCurrentPlayerNameplate()
+    end)
 end)
