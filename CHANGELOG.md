@@ -1,14 +1,8 @@
-## [0.1.2] - 2026-04-06### Fixed
-- restore flyout actions (Skyriding, Warbands, Hero's Path) across spec/loadout switches
-- update label for hiding class resources in Edit Mode settings
-
-
-
-## [0.1.2] - Unreleased
+## [0.1.2] - 2026-04-06
 
 ### Fixed
-- Restore flyout actions (Skyriding, Warbands, Hero's Path) across spec/loadout switches
-- Update label for hiding class resources in Edit Mode settings
+- restore flyout actions (Skyriding, Warbands, Hero's Path) across spec/loadout switches
+- update label for hiding class resources in Edit Mode settings
 
 ### Documentation
 - Update PRD screenshot

@@ -59,6 +59,45 @@ bash /home/aspieslechner/agent-workspaces/wow-addon/sync.sh
 
 After syncing, the user must type `/reload` in WoW to pick up the changes.
 
+### Version Bumps and Releases
+
+To release a new version to CurseForge:
+
+1. **Clean up old tags** (if necessary):
+   ```bash
+   # Delete incorrect tags locally
+   git tag -d v0.1.1-release v0.1.2-release
+   
+   # Delete from remote (if already pushed)
+   git push origin :refs/tags/v0.1.1-release :refs/tags/v0.1.2-release
+   ```
+
+2. **Run the version bump script**:
+   ```bash
+   ./version-bump.sh 0.1.2
+   ```
+   
+   This script will:
+   - Validate the version format (X.Y.Z)
+   - Update `## Version:` in `EnhancedInterface.toc`
+   - Generate changelog entries from git commits since the last tag
+   - Categorize commits as: **Added** (feat:), **Fixed** (fix:), **Changed** (refactor:), **Documentation** (docs:)
+   - Prepend the new section to `CHANGELOG.md` with the release date
+   - Commit both files with message `chore: bump version to X.Y.Z`
+   - Create a git tag `vX.Y.Z`
+
+3. **Push to remote**:
+   ```bash
+   git push origin main --tags
+   ```
+   
+   This triggers the CurseForge packager webhook, which packages only the `EnhancedInterface/` folder (as configured in `.curseforge`).
+
+**Important:**
+- Commit message format matters: use `feat:`, `fix:`, `refactor:`, and `docs:` prefixes to categorize changelog entries correctly.
+- Always run `./version-bump.sh` before pushing to ensure consistency between version numbers and tags.
+- The webhook requires the tag format `vX.Y.Z` (with `v` prefix) and will only package files within `EnhancedInterface/`.
+
 ## Knowledge Base
 
 Reference documents accumulated during development. Consult these before researching topics they cover.

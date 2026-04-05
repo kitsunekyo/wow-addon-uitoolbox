@@ -1,0 +1,9 @@
+[metadata]
+changelog = CHANGELOG.md
+changelog-type = markdown
+display-name = Enhanced Interface
+project-id = 1504854
+
+[exclude]
+match = ^(?!EnhancedInterface/)
+type = regex
