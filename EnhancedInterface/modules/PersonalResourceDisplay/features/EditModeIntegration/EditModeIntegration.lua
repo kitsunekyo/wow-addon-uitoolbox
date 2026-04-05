@@ -27,7 +27,7 @@ EnhancedInterface.EditModeCompanion.Register({
         },
         {
             type    = "checkbox",
-            label   = "Hide class resources",
+            label   = "Hide unit frame class resources",
             tooltip = "Hides class resource frames below the player unit frame " ..
                       "(runes, holy power, combo points, soul shards, chi, arcane charges, essence orbs).",
             get = function()
