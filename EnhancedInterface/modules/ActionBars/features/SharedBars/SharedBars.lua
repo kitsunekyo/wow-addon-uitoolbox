@@ -59,7 +59,8 @@
 -- PLAYER_REGEN_ENABLED if InCombatLockdown() is true when restore fires.
 --
 -- Supported action types: spell, summonmount, item, macro, equipmentset,
--- companion.  flyout is skipped (no safe pickup API).
+-- companion, flyout.  flyout is restored by scanning the spellbook for a
+-- matching FLYOUT entry and calling PickupSpellBookItem.
 
 local SharedBars = {}
 EnhancedInterface.SharedBars = SharedBars
@@ -179,6 +180,36 @@ local function PickupMountBySpellID(spellID)
     return true
 end
 
+-- Pick up a flyout onto the cursor by its flyoutID, ready to be placed on an
+-- action bar slot.  Scans the player spellbook and pet spellbook using the
+-- modern C_SpellBook API (added 11.0.0; replaces the removed GetNumSpellTabs /
+-- GetSpellTabInfo / GetSpellBookItemInfo / PickupSpellBookItem globals).
+--
+-- For each skill line, iterates every spellbook slot looking for an entry of
+-- type Enum.SpellBookItemType.Flyout whose actionID matches the target flyoutID.
+-- When found, calls C_SpellBook.PickupSpellBookItem to put it on the cursor.
+--
+-- Returns true if the flyout was found and picked up.
+local function PickupFlyoutByID(flyoutID)
+    local bankTypes = { Enum.SpellBookSpellBank.Player, Enum.SpellBookSpellBank.Pet }
+    for _, bankType in ipairs(bankTypes) do
+        local numSkillLines = C_SpellBook.GetNumSpellBookSkillLines()
+        for i = 1, numSkillLines do
+            local info = C_SpellBook.GetSpellBookSkillLineInfo(i)
+            if info then
+                for j = info.itemIndexOffset + 1, info.itemIndexOffset + info.numSpellBookItems do
+                    local itemType, actionID = C_SpellBook.GetSpellBookItemType(j, bankType)
+                    if itemType == Enum.SpellBookItemType.Flyout and actionID == flyoutID then
+                        C_SpellBook.PickupSpellBookItem(j, bankType)
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
 -- Pickup the correct cursor item for a saved slot record.
 -- Returns true if a pickup was attempted (cursor state determines success).
 local function PickupSavedAction(record)
@@ -215,6 +246,10 @@ local function PickupSavedAction(record)
         -- subType is "MOUNT" or "CRITTER"; id is the companion index.
         PickupCompanion(subType, id)
         return true
+    elseif actionType == "flyout" then
+        -- id is the flyoutID from GetActionInfo. Locate the matching spellbook
+        -- entry and pick it up from there (no direct PickupFlyout API exists).
+        return PickupFlyoutByID(id)
     end
 
     return false
@@ -259,7 +294,13 @@ function SharedBars:SnapshotBar(barIndex)
                         slots[i + 1] = { type = "summonmount", id = spellID }
                     end
                 end
-            -- else: "flyout" and unknown types are intentionally skipped.
+
+            elseif actionType == "flyout" then
+                -- id is the flyoutID — a stable server-defined identifier for the
+                -- flyout definition (e.g. Skyriding, Warbands, Hero's Path).
+                -- Restored via PickupFlyoutByID which scans the spellbook.
+                slots[i + 1] = { type = "flyout", id = id }
+            -- else: unknown types are intentionally skipped.
             end
         end
     end
