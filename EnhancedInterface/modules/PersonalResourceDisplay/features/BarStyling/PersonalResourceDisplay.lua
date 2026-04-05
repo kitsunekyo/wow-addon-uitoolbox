@@ -82,58 +82,22 @@ local function ApplyClassResourceFrameStyle()
     end
 end
 
-local function EnsurePowerBarBorder(powerBar)
-    if powerBar.EnhancedInterfaceUniformBorder then
+-- Creates a single top-edge border texture on the power bar that matches Blizzard's
+-- NamePlateSecondaryBarBorderTemplate color (black, 50% alpha) used for Bottom/Left/Right.
+-- PowerBar.Border intentionally has no Top child (the health bar's bottom border fills that
+-- gap normally). We add one here only when the health bar is hidden.
+local function EnsurePowerBarTopBorder(powerBar)
+    if powerBar.EnhancedInterfaceTopBorder then
         return
     end
 
-    local border = CreateFrame("Frame", nil, powerBar)
-    border:SetAllPoints(powerBar)
+    local tex = powerBar:CreateTexture(nil, "BACKGROUND", nil, -8)
+    tex:SetColorTexture(0, 0, 0, 0.5)
+    tex:SetPoint("BOTTOMLEFT", powerBar, "TOPLEFT")
+    tex:SetPoint("BOTTOMRIGHT", powerBar, "TOPRIGHT")
+    PixelUtil.SetHeight(tex, 1, 2)
 
-    local top = border:CreateTexture(nil, "BACKGROUND")
-    top:SetColorTexture(0, 0, 0, 0.5)
-
-    local bottom = border:CreateTexture(nil, "BACKGROUND")
-    bottom:SetColorTexture(0, 0, 0, 0.5)
-
-    local left = border:CreateTexture(nil, "BACKGROUND")
-    left:SetColorTexture(0, 0, 0, 0.5)
-
-    local right = border:CreateTexture(nil, "BACKGROUND")
-    right:SetColorTexture(0, 0, 0, 0.5)
-
-    border.top = top
-    border.bottom = bottom
-    border.left = left
-    border.right = right
-    powerBar.EnhancedInterfaceUniformBorder = border
-end
-
-local function UpdatePowerBarBorder(powerBar)
-    local border = powerBar.EnhancedInterfaceUniformBorder
-    if not border then
-        return
-    end
-
-    border.top:ClearAllPoints()
-    border.top:SetPoint("BOTTOMLEFT", powerBar, "TOPLEFT")
-    border.top:SetPoint("BOTTOMRIGHT", powerBar, "TOPRIGHT")
-    PixelUtil.SetHeight(border.top, 1)
-
-    border.bottom:ClearAllPoints()
-    border.bottom:SetPoint("TOPLEFT", powerBar, "BOTTOMLEFT")
-    border.bottom:SetPoint("TOPRIGHT", powerBar, "BOTTOMRIGHT")
-    PixelUtil.SetHeight(border.bottom, 1)
-
-    border.left:ClearAllPoints()
-    border.left:SetPoint("TOPRIGHT", powerBar, "TOPLEFT")
-    border.left:SetPoint("BOTTOMRIGHT", powerBar, "BOTTOMLEFT")
-    PixelUtil.SetWidth(border.left, 1)
-
-    border.right:ClearAllPoints()
-    border.right:SetPoint("TOPLEFT", powerBar, "TOPRIGHT")
-    border.right:SetPoint("BOTTOMLEFT", powerBar, "BOTTOMRIGHT")
-    PixelUtil.SetWidth(border.right, 1)
+    powerBar.EnhancedInterfaceTopBorder = tex
 end
 
 local function ApplyHealthStyle(frame)
@@ -214,16 +178,18 @@ local function ApplyPowerStyle(frame)
     -- Border: only managed when hideHealth is enabled.
     -- restyle alone never touches borders.
     if hideHealth then
-        EnsurePowerBarBorder(powerBar)
-        UpdatePowerBarBorder(powerBar)
-        powerBar.EnhancedInterfaceUniformBorder:SetShown(true)
+        -- PowerBar.Border provides Bottom/Left/Right — keep it visible.
+        -- Add a matching Top texture since NamePlateSecondaryBarBorderTemplate has no Top child
+        -- (normally the health bar's bottom border closes that gap).
         if powerBar.Border then
-            powerBar.Border:SetShown(false)
+            powerBar.Border:SetShown(true)
         end
+        EnsurePowerBarTopBorder(powerBar)
+        powerBar.EnhancedInterfaceTopBorder:SetShown(true)
     else
         -- Restore Blizzard border unconditionally (safe even if we never touched it).
-        if powerBar.EnhancedInterfaceUniformBorder then
-            powerBar.EnhancedInterfaceUniformBorder:Hide()
+        if powerBar.EnhancedInterfaceTopBorder then
+            powerBar.EnhancedInterfaceTopBorder:Hide()
         end
         if powerBar.Border then
             powerBar.Border:Show()
