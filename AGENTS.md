@@ -1,23 +1,41 @@
-# World of Warcraft Addon Author
+# Enhanced Interface - World of Warcraft Addon
 
-you are a lua addon author for World of Warcraft - Midnight. you build helpful addons with good UX and integration.
-plugin settings are well integrated into the addons options menu.
+You are a Lua addon author for World of Warcraft (retail only — latest version). Write clean, performant code that integrates naturally into the WoW UI using existing Blizzard assets and templates.
 
-## Design
+## Project Structure
 
-- use existing world of warcraft assets whereever possible
-- the addons UI integrates nicely into the existing world of warcraft experience
+The addon lives under `EnhancedInterface/`:
 
-## Code
+```
+EnhancedInterface/
+  EnhancedInterface.toc   # load order and metadata
+  Core.lua                # addon init, SavedVariables (EnhancedInterfaceDB), event dispatch, module registry
+  Settings.lua            # WoW Settings UI panel registration
+  modules/                # self-contained feature modules, grouped by UI area
+    ActionBars/
+      features/
+        SharedBars/               # shared action bar slots across characters
+        EditModeIntegration/
+    Nameplates/
+      features/
+        NameplateScale/           # fine-tune nameplate scale factor
+    ObjectivesTracker/
+      features/
+        AutoCollapse/             # auto-collapse tracker sections by zone
+        DamageMeterEmbed/         # embed damage meter into the objectives tracker
+        EditModeIntegration/
+    PersonalResourceDisplay/
+      features/
+        BarStyling/               # restyle/hide PRD bars
+        EditModeIntegration/
+  shared/                 # utilities reused across multiple modules
+    EditModeCompanionDialog/      # dialog that accompanies Edit Mode for injected buttons
+```
 
-- your code is clean and maintainable
-- you think about the performance impact of the implementation and use of the wow api
-- you use only the most recent API documentation. you do not care about classic or other flavours of world of warcraft. only the most recent retail version.
-
-## Inspiration
-
-- the biggest inspiration for quality and style is the addon "Plumber"
-- you also like the addon "Enhance QoL", "LiteMount"
+**Conventions:**
+- `Core.lua` exposes the global `EnhancedInterface` frame. All settings live on `EnhancedInterface.db` (backed by `EnhancedInterfaceDB` SavedVariablesPerCharacter).
+- Each feature is a single `.lua` file (sometimes paired with an `EditModeIntegration.lua`). New features follow the same pattern: one file per feature under `modules/<Area>/features/<FeatureName>/`.
+- After adding a new file, register it in `EnhancedInterface.toc`.
 
 ## Development Environment
 
@@ -28,42 +46,18 @@ plugin settings are well integrated into the addons options menu.
 
 The canonical source of truth is the WSL2 workspace:
 ```
-/home/aspieslechner/agent-workspaces/wow-addon/   (WSL path)
-\\wsl.localhost\archlinux\home\aspieslechner\agent-workspaces\wow-addon\   (UNC path — same location)
-```
-
-The WoW installation directory is a **deploy target only** — never touch it directly:
-```
-C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\EnhancedInterface\   ← DEPLOY TARGET — DO NOT TOUCH
-/mnt/c/Program Files (x86)/World of Warcraft/_retail_/Interface/AddOns/EnhancedInterface/   ← SAME PATH — DO NOT TOUCH
+/home/aspieslechner/agent-workspaces/wow-addon/
 ```
 
 ### MANDATORY: Deploying changes
 
-> **After every completed change, run `sync.sh` to deploy the addon to the WoW installation.**
+> **After every completed change, run `sync.sh` to deploy the addon to WoW.**
 
+```bash
+bash /home/aspieslechner/agent-workspaces/wow-addon/sync.sh
 ```
-wsl -d archlinux -e bash -c "bash /home/aspieslechner/agent-workspaces/wow-addon/sync.sh"
-```
 
-The script wipes the destination directory and copies everything fresh from the workspace,
-guaranteeing no stale files survive. After syncing, the user must type `/reload` in WoW
-to pick up the changes.
-
-### Writing files
-
-Due to the WSL/Windows environment, the Write and Edit tools write via the UNC path
-(`\\wsl.localhost\archlinux\...`) but WSL bash sees those files at the Linux path
-(`/home/aspieslechner/agent-workspaces/wow-addon/...`) — these are the same location.
-
-When writing multi-line files, use a Python script written to `C:\temp\` and executed
-via WSL, because the fish shell intercepts heredocs and multiline `-c` strings:
-
-```
-# Write script via Write tool to: C:\temp\myscript.py
-# Then execute from WSL:
-wsl -d archlinux -e bash -c "python3 /mnt/c/temp/myscript.py"
-```
+After syncing, the user must type `/reload` in WoW to pick up the changes.
 
 ## Knowledge Base
 
@@ -76,34 +70,3 @@ Reference documents accumulated during development. Consult these before researc
 - [Buttons and Interactions](knowledge/buttons-and-interactions.md) — button templates, click scripts, enable/disable, atlas textures, tooltip-on-hover pattern, context menus via `MenuUtil`, and combat lockdown notes
 - [Custom Frames and Borders](knowledge/custom-frames-and-borders.md) — `BackdropTemplate`, `SetBackdrop`, pre-defined backdrop tables, standard frame templates, movable/resizable frames, frame strata, and saving position
 - [Text and Form Elements](knowledge/text-and-form-elements.md) — `FontString` font objects and methods, `EditBox` (InputBoxTemplate), `CheckButton` (checkbox), `Slider` (UISliderTemplateWithLabels), and the modern `Menu`/`DropdownButton` system
-
-## Tools
-
-### Finding In-Game Textures
-
-To browse available in-game textures and atlas entries for use in the addon, instruct the user to type `/tav` in the WoW chat to open the **TextureAtlasViewer** addon. This lets you search and preview atlas textures by name so you can pick appropriate assets before coding them in.
-
-### Inspecting Frames and Events (DevTool)
-
-When debugging UI layout, frame hierarchy, or event flow, instruct the user to use the **DevTool** addon (`/dev` to toggle its window). Key use cases:
-
-- **Frame stack** — type `/fstack` in WoW chat to highlight the frame under the cursor and show its name/hierarchy. Use this to identify the exact frame name to hook into or parent against.
-- **Event tracing** — type `/etrace` in WoW chat (or use DevTool's Events tab) to monitor fired events in real time. Use this to discover which events fire during a specific action so you know what to register for.
-- **Inspecting tables/globals** — in the DevTool History tab, enter any fully-qualified global name (e.g. `PlayerFrame` or `UIParent`) to explore its fields and child frames interactively.
-- **Logging function calls** — in the DevTool Fn Call Log tab, enter `<function> <parent>` to log calls, arguments, and return values at runtime.
-- **Chat commands**: `/dev help` lists all available commands; `/dev <name>` adds a global to the inspector directly from chat.
-
-Use DevTool whenever you need to identify frame names for injection, verify event names and payloads, or inspect the live state of any global table or frame.
-
-## Resources
-
-**official battle.net developer docs**
-
-- [Guides](https://community.developer.battle.net/documentation/world-of-warcraft/guides)
-- [Game Data APIs](https://community.developer.battle.net/documentation/world-of-warcraft/game-data-apis)
-- [Profile APIs](https://community.developer.battle.net/documentation/world-of-warcraft/profile-apis)
-
-**warcraft.wiki.gg**
-
-- [World of Warcraft API](https://warcraft.wiki.gg/wiki/World_of_Warcraft_API)
-- [gethe/wow-ui-source](https://github.com/Gethe/wow-ui-source/tree/live/Interface/AddOns/Blizzard_APIDocumentationGenerated)
