@@ -1,6 +1,4 @@
-## [0.1.2] - 2026-04-06
-
-### Fixed
+## [0.1.3] - 2026-04-06
 - restore flyout actions (Skyriding, Warbands, Hero's Path) across spec/loadout switches
 - update label for hiding class resources in Edit Mode settings
 
