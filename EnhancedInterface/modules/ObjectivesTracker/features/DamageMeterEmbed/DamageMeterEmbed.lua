@@ -125,8 +125,12 @@ function EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin:LayoutContents
     -- We must call LayoutBlock at least once so hasContents becomes true and
     -- the module is considered to have content (visibility rule).
     -- Use a zero-height invisible block — the damage meter window itself provides all visuals.
+    -- GetBlock calls Reset() which zeros block.height already; do NOT write it
+    -- from addon code because any number we write is tainted, and LayoutBlock
+    -- passes it to block:SetHeight(), feeding a tainted value into C++ frame
+    -- layout — which propagates through UIParent_ManageFramePositions() and
+    -- causes "secret number value" errors in downstream Blizzard code.
     local block = self:GetBlock("uitoolbox_damagemeter")
-    block.height = 0
     if not self:LayoutBlock(block) then
         return
     end
@@ -231,66 +235,33 @@ Mixin(frame, EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin)
 frame.headerText = "Damage Meter"
 frame:SetHeader("Damage Meter")
 
--- NOTE: Do NOT set frame.uiOrder here at load time.
--- Setting it from addon code produces a tainted numeric value. When
+-- NOTE: uiOrder must NOT be set from addon code.
+-- Any number written by addon code is tainted. When
 -- ObjectiveTrackerContainerMixin:Update() sorts the modules table it reads
 -- every module's uiOrder via a comparator; reading a tainted value contaminates
--- the entire sort execution context. That tainted context then propagates into
+-- the entire sort execution context. That tainted context propagates into
 -- UIParent_ManageFramePositions(), which repositions UI frames — tainting their
 -- positions. Blizzard code that later reads those positions (e.g.
 -- QuestMapLogTitleButton_OnEnter in QuestMapFrame.lua) then hits
 -- "attempt to perform numeric conversion on a secret number value" errors.
 --
--- Instead, uiOrder is assigned inside TryRegister() immediately after the
--- module is registered. The value is still technically tainted (all addon-
--- written numbers are), but by setting it right before MarkDirty triggers
--- and clearing needsSorting, we ensure the sort never fires as a direct
--- result of our module being added, eliminating the taint propagation path.
+-- Instead, uiOrder is written inside a hooksecurefunc on AssignModulesOrder.
+-- That hook runs within Blizzard's own Init() call stack, so the write is
+-- untainted. The value is #modules + 1, placing our module last (after all
+-- built-in modules, which get uiOrder 1–11).
 
 -- ---------------------------------------------------------------------------
 -- Registration
 -- ---------------------------------------------------------------------------
 
--- Permanently suppress the module-sort on ObjectiveTrackerFrame.
---
--- ObjectiveTrackerContainerMixin:AddModule() and RemoveModule() both set
--- needsSorting = true, which causes the next Update() to run table.sort().
--- The sort comparator reads every module's uiOrder; since our module's
--- uiOrder is written by addon code it is a tainted value. Reading it in the
--- comparator taints the entire sort execution context, which propagates into
--- UIParent_ManageFramePositions() and downstream Blizzard code —
--- triggering "attempt to perform numeric conversion on a secret number value"
--- (QuestMapFrame.lua:2123) and "SetPassThroughButtons: protected function"
--- (MapCanvas pin passthrough) errors.
---
--- The sort is safe to suppress on ObjectiveTrackerFrame because:
---   • Built-in modules are ordered stably at startup via AssignModulesOrder().
---   • Our module always sits at the end (uiOrder 100 > all built-in 1–11).
---   • Suppressing sort on ObjectiveTrackerFrame does not affect other
---     containers (BonusObjectiveTracker, etc.) — we guard by container.
---
--- We hook AddModule/RemoveModule on the *mixin* so the hook is registered once
--- and covers all future calls regardless of call site.
-local sortSuppressInstalled = false
-local function InstallSortSuppressHooks()
-    if sortSuppressInstalled then return end
-    sortSuppressInstalled = true
-
-    -- hooksecurefunc runs our callback AFTER the original function body.
-    -- At that point needsSorting has already been set to true; we flip it back
-    -- to false so the sort never executes for ObjectiveTrackerFrame.
-    hooksecurefunc(ObjectiveTrackerContainerMixin, "AddModule", function(self)
-        if self == ObjectiveTrackerFrame then
-            self.needsSorting = false
-        end
-    end)
-
-    hooksecurefunc(ObjectiveTrackerContainerMixin, "RemoveModule", function(self)
-        if self == ObjectiveTrackerFrame then
-            self.needsSorting = false
-        end
-    end)
-end
+-- Assign our module's uiOrder from within Blizzard's own execution context
+-- so the value is untainted. hooksecurefunc fires as part of Blizzard's
+-- Init() → AssignModulesOrder() call, so the write carries Blizzard's trust.
+-- Built-in modules receive uiOrder 1–11 (ipairs index in orderedModules);
+-- we place ourselves immediately after the last one.
+hooksecurefunc(ObjectiveTrackerManager, "AssignModulesOrder", function(self, modules)
+    EnhancedInterfaceObjectivesTrackerDamageMeterModule.uiOrder = #modules + 1
+end)
 
 -- Use hooksecurefunc on Init so we are guaranteed to run after
 -- ObjectiveTrackerManager:Init() has populated self.containers.
@@ -303,15 +274,6 @@ local function TryRegister()
         return
     end
     registered = true
-
-    -- Install sort-suppress hooks before registration so the AddModule call
-    -- inside SetModuleContainer is already covered.
-    InstallSortSuppressHooks()
-
-    -- Assign uiOrder here (just before registration) so the value is present
-    -- when needed, but note it is still addon-tainted.
-    -- Sit below all built-in modules (their uiOrder values are 1–11).
-    EnhancedInterfaceObjectivesTrackerDamageMeterModule.uiOrder = 100
 
     ObjectiveTrackerManager:SetModuleContainer(EnhancedInterfaceObjectivesTrackerDamageMeterModule, ObjectiveTrackerFrame)
 
