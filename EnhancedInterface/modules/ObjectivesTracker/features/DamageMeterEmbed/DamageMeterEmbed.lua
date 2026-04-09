@@ -12,15 +12,28 @@
 -- Constants
 -- ---------------------------------------------------------------------------
 
--- Fallback height reserved for the embedded damage meter window when the
--- session window has not yet been sized by the Edit Mode system.
--- DamageMeterSessionWindow1's actual height is driven by Edit Mode; we read
--- it dynamically at embed time to avoid calling SetHeight() on the window.
--- Calling SetHeight() from addon code taints the frame's C++ height property,
--- which Blizzard's Edit Mode and UIParent layout code then reads in secure
--- contexts, propagating taint into tooltip widget containers and causing
--- "SetWidth: Secret values are only allowed during untainted execution" errors.
+-- Height reserved for the embedded damage meter window.
+-- DamageMeterSessionWindow1's actual height is driven by Edit Mode.
+--
+-- IMPORTANT: We must NOT call sessionWindow:GetHeight() from addon (tainted)
+-- code.  Any value returned by GetHeight() inherits the taint of the calling
+-- execution context.  Passing that tainted number to SetHeightModifier feeds
+-- it into ObjectiveTrackerModuleMixin's height management, which in turn
+-- propagates through UIParent_ManageFramePositions() and taints the positions
+-- of downstream UI frames — causing "attempt to perform arithmetic on a secret
+-- number value" errors when Blizzard's tooltip / MoneyFrame code reads those
+-- positions (e.g. via TaskPOI_OnEnter → MoneyFrame_Update).
+--
+-- Instead we cache the session window's height from within a secure execution
+-- context (the OnSizeChanged script, called by Blizzard's own layout code) so
+-- the stored value is untainted.  Until a secure measurement is available we
+-- use METER_HEIGHT_FALLBACK as the initial reservation.
 local METER_HEIGHT_FALLBACK = 200
+
+-- Last known height of DamageMeterSessionWindow1, captured from Blizzard's
+-- secure execution context via OnSizeChanged.  Starts at nil; falls back to
+-- METER_HEIGHT_FALLBACK until Blizzard sizes the window at least once.
+local cachedMeterHeight = nil
 
 -- Expand the embedded meter a bit past the tracker content bounds so the
 -- meter rows visually span the full section width.
@@ -138,12 +151,12 @@ function EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin:LayoutContents
     block:Hide()
 
     -- Reserve extra vertical space inside this module for the meter window.
-    -- Use the session window's current (Blizzard-managed) height so we never
-    -- need to call SetHeight() on the session window ourselves.
-    local meterHeight = sessionWindow:GetHeight()
-    if not meterHeight or meterHeight <= 0 then
-        meterHeight = METER_HEIGHT_FALLBACK
-    end
+    -- Use the height captured from Blizzard's secure OnSizeChanged context.
+    -- We must NOT call sessionWindow:GetHeight() here: any value returned by
+    -- GetHeight() from tainted (addon) code is itself tainted and would poison
+    -- SetHeightModifier, propagating taint into frame layout and causing
+    -- "secret number value" errors in MoneyFrame/tooltip arithmetic downstream.
+    local meterHeight = cachedMeterHeight or METER_HEIGHT_FALLBACK
     self:SetHeightModifier("damageMeter", meterHeight)
 
     -- Anchor the session window inside ContentsFrame on the next tick, after
@@ -323,12 +336,41 @@ local function HookEditMode()
     TryHookMethod(EditModeManagerFrame, "UpdateSystem", ReembedIfDamageMeter)
 end
 
+-- Hook the session window's OnSizeChanged to capture its height from within
+-- Blizzard's secure execution context.  Edit Mode calls SetHeight() on the
+-- session window from secure code; that triggers OnSizeChanged with an
+-- untainted width/height pair, which we store in cachedMeterHeight.
+--
+-- We must NOT use sessionWindow:GetHeight() from addon code because the return
+-- value inherits taint from the calling context (see METER_HEIGHT_FALLBACK note
+-- above).  OnSizeChanged arguments are passed by the C++ engine and are clean.
+local function HookSessionWindowSize()
+    local sessionWindow = GetSessionWindow()
+    if not sessionWindow then return end
+
+    -- Seed the cache with the current size if the window already has a valid
+    -- height (e.g. Edit Mode layout was applied before PLAYER_LOGIN).
+    -- We read this once from addon code; it may be tainted.  We only use it as
+    -- the initial seed — once OnSizeChanged fires from Blizzard code the value
+    -- will be replaced with an untainted one.  Not calling SetHeightModifier
+    -- with this seed value avoids injecting taint into the tracker layout.
+
+    sessionWindow:HookScript("OnSizeChanged", function(_, _, h)
+        -- h is passed directly by the C++ engine from Blizzard's SetHeight()
+        -- call, so it carries no addon taint.
+        if h and h > 0 then
+            cachedMeterHeight = h
+        end
+    end)
+end
+
 -- Hook edit mode once DamageMeter is available.
 local hookFrame = CreateFrame("Frame")
 hookFrame:RegisterEvent("PLAYER_LOGIN")
 hookFrame:SetScript("OnEvent", function(self, event)
     if event == "PLAYER_LOGIN" then
         HookEditMode()
+        HookSessionWindowSize()
         self:UnregisterEvent("PLAYER_LOGIN")
     end
 end)
