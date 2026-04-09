@@ -51,10 +51,10 @@ The canonical source of truth is the WSL2 workspace:
 
 ### MANDATORY: Deploying changes
 
-> **After every completed change, run `sync.sh` to deploy the addon to WoW.**
+> **After every completed change, run `scripts/sync.sh` to deploy the addon to WoW.**
 
 ```bash
-bash /home/aspieslechner/agent-workspaces/wow-addon/sync.sh
+bash /home/aspieslechner/agent-workspaces/wow-addon/scripts/sync.sh
 ```
 
 After syncing, the user must type `/reload` in WoW to pick up the changes.
@@ -74,7 +74,7 @@ To release a new version to CurseForge:
 
 2. **Run the version bump script**:
    ```bash
-   ./version-bump.sh 0.1.2
+   ./scripts/version-bump.sh 0.1.2
    ```
    
    This script will:
@@ -95,7 +95,7 @@ To release a new version to CurseForge:
 
 **Important:**
 - Commit message format matters: use `feat:`, `fix:`, `refactor:`, and `docs:` prefixes to categorize changelog entries correctly.
-- Always run `./version-bump.sh` before pushing to ensure consistency between version numbers and tags.
+- Always run `./scripts/version-bump.sh` before pushing to ensure consistency between version numbers and tags.
 - The webhook requires the tag format `vX.Y.Z` (with `v` prefix) and will only package files within `EnhancedInterface/`.
 
 ## Knowledge Base

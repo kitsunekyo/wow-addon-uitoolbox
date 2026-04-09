@@ -6,7 +6,11 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BUILD_DIR="${SCRIPT_DIR}/build"
 ADDON_NAME="EnhancedInterface"
+
+# Create build directory if it doesn't exist
+mkdir -p "${BUILD_DIR}"
 
 # Get the latest git tag (semver version)
 VERSION=$(cd "${SCRIPT_DIR}" && git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
@@ -14,7 +18,7 @@ VERSION=$(cd "${SCRIPT_DIR}" && git describe --tags --abbrev=0 2>/dev/null || ec
 # Remove 'v' prefix if present (e.g., v1.0.0 -> 1.0.0)
 VERSION="${VERSION#v}"
 
-OUTPUT_FILE="${SCRIPT_DIR}/${ADDON_NAME}-${VERSION}.zip"
+OUTPUT_FILE="${BUILD_DIR}/${ADDON_NAME}-${VERSION}.zip"
 
 # Create a Python script to handle the zipping
 TEMP_SCRIPT=$(mktemp)
@@ -27,7 +31,7 @@ def should_exclude(path, name):
     """Check if a file/directory should be excluded"""
     excluded = {
         '.git', '.opencode', '.gitignore', '.DS_Store',
-        'README.md', 'AGENTS.md', 'knowledge', 'deploy.sh',
+        'README.md', 'AGENTS.md', 'knowledge', 'package.sh',
         'sync.sh'
     }
     return name in excluded or path.endswith('.pyc')
