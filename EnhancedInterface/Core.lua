@@ -29,6 +29,10 @@ local DEFAULTS = {
         restylePowerBar    = false,
         hideWhenMounted    = false,
     },
+    -- PersonalResourceDisplay: runic power display
+    runicPowerDisplay = {
+        enabled = false,
+    },
     -- ActionBars: SharedBars
     -- bars[barIndex] = { enabled = bool, slots = { [n] = { type = "spell"|"item"|"macro"|"equipmentset", id = number } } }
     -- bars is empty by default; entries are created the first time a bar is enabled.

@@ -16,6 +16,8 @@ shared\EditModeCompanionDialog\EditModeCompanionDialog.lua
 modules\ObjectivesTracker\features\AutoCollapse\EditModeIntegration.lua
 modules\ObjectivesTracker\features\EditModeIntegration\EditModeIntegration.lua
 modules\PersonalResourceDisplay\features\BarStyling\PersonalResourceDisplay.lua
+modules\PersonalResourceDisplay\features\RunicPowerDisplay\RunicPowerDisplay.lua
+modules\PersonalResourceDisplay\features\RunicPowerDisplay\EditModeIntegration.lua
 modules\PersonalResourceDisplay\features\EditModeIntegration\EditModeIntegration.lua
 modules\ActionBars\features\SharedBars\SharedBars.lua
 modules\ActionBars\features\EditModeIntegration\EditModeIntegration.lua
