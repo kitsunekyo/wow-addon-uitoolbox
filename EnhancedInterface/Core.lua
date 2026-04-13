@@ -29,8 +29,8 @@ local DEFAULTS = {
         restylePowerBar    = false,
         hideWhenMounted    = false,
     },
-    -- PersonalResourceDisplay: runic power display
-    runicPowerDisplay = {
+    -- PersonalResourceDisplay: power value display (all classes)
+    powerValueDisplay = {
         enabled = false,
     },
     -- ActionBars: SharedBars
@@ -89,6 +89,11 @@ function EnhancedInterface:ADDON_LOADED(addonName)
     -- Migrate legacy key name used before this became an ObjectivesTracker feature.
     if EnhancedInterfaceDB.objectivesTrackerDamageMeter == nil and EnhancedInterfaceDB.trackerEmbed ~= nil then
         EnhancedInterfaceDB.objectivesTrackerDamageMeter = CopyTable(EnhancedInterfaceDB.trackerEmbed)
+    end
+
+    -- Migrate runicPowerDisplay → powerValueDisplay (renamed to be class-agnostic).
+    if EnhancedInterfaceDB.powerValueDisplay == nil and EnhancedInterfaceDB.runicPowerDisplay ~= nil then
+        EnhancedInterfaceDB.powerValueDisplay = CopyTable(EnhancedInterfaceDB.runicPowerDisplay)
     end
 
     ApplyDefaults(EnhancedInterfaceDB, DEFAULTS)

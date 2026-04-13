@@ -1,18 +1,19 @@
 -- EnhancedInterface
--- modules/PersonalResourceDisplay/features/RunicPowerDisplay/RunicPowerDisplay.lua
+-- modules/PersonalResourceDisplay/features/PowerValueDisplay/PowerValueDisplay.lua
 --
--- PoC: Read and display the player's current power value (all power types) as a
--- number centered on the Personal Resource Display power bar. This validates that
--- UnitPower is accessible and returns a real numeric value in this context.
+-- Displays the player's current primary power value (mana, rage, energy, runic
+-- power, focus, fury, etc.) as a number centered on the Personal Resource
+-- Display power bar. Works for all classes — the power type is determined
+-- dynamically via UnitPowerType each update.
 
-local RunicPowerDisplay = {}
+local PowerValueDisplay = {}
 
 local powerLabel = nil  -- the FontString we create once and reuse
 
 local function IsEnabled()
     return EnhancedInterface.db
-        and EnhancedInterface.db.runicPowerDisplay
-        and EnhancedInterface.db.runicPowerDisplay.enabled
+        and EnhancedInterface.db.powerValueDisplay
+        and EnhancedInterface.db.powerValueDisplay.enabled
 end
 
 local function GetPowerBar()
@@ -60,8 +61,8 @@ local function UpdateLabel()
     powerLabel:SetText(tostring(current))
 end
 
-function RunicPowerDisplay:SetEnabled(enabled)
-    EnhancedInterface.db.runicPowerDisplay.enabled = enabled
+function PowerValueDisplay:SetEnabled(enabled)
+    EnhancedInterface.db.powerValueDisplay.enabled = enabled
     UpdateLabel()
 end
 
@@ -87,10 +88,10 @@ end)
 
 -- ── Hook PRD setup so the label survives spec/power-type changes ──────────────
 
--- Blizzard re-parents and re-creates parts of the power bar on SetupPowerBar and
--- OnShow. We re-create our label after each such call so it stays on top.
+-- Blizzard re-parents and re-creates parts of the power bar on SetupPowerBar
+-- and OnShow. Invalidate and re-create our label after each such call so it
+-- stays on the correct bar instance.
 local function OnPRDSetup()
-    -- Invalidate the cached label so EnsureLabel() re-creates it on the new bar.
     powerLabel = nil
     EnsureLabel()
     UpdateLabel()
@@ -102,4 +103,4 @@ if PersonalResourceDisplayMixin then
 end
 
 -- Export module for use in EditModeIntegration
-_G.EnhancedInterfaceRunicPowerDisplayModule = RunicPowerDisplay
+_G.EnhancedInterfacePowerValueDisplayModule = PowerValueDisplay
