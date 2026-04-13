@@ -304,7 +304,26 @@ diag:SetScript("OnEvent", function()
 end)
 
 -- Re-embed after Edit Mode writes its layout back to DamageMeter (which would
--- overwrite our anchors on the session window's parent). Defer one tick.
+-- overwrite our anchors on the session window's parent).
+--
+-- TAINT HAZARD: hooksecurefunc callbacks on EditModeManagerFrame methods run
+-- inside the call chain that originates from C_EditMode.SetActiveLayout() calls
+-- by any addon (e.g. AccWideUILayoutSelection).  That call chain carries taint
+-- from those addons.  Any C_Timer.After closure created inside such a hook
+-- inherits the tainted execution context and will propagate taint to whatever
+-- it touches — including chat-frame internal state (ChatHistory_GetToken,
+-- HistoryKeeper.lua), causing "attempt to perform string conversion on a secret
+-- string value" errors.
+--
+-- FIX: Never call C_Timer.After (or any other deferred work) inside the
+-- hooksecurefunc callback.  Instead, only flip a plain boolean flag.  A
+-- separate OnUpdate handler, driven by the game loop's own C++ call origin
+-- (not the tainted hook call chain), polls the flag and performs the actual
+-- re-embed outside of the tainted context.
+
+-- Flag set by the Edit Mode hook; consumed by the OnUpdate poller below.
+local pendingReembed = false
+
 local function TryHookMethod(object, methodName, hookFunc)
     if object and type(object[methodName]) == "function" then
         hooksecurefunc(object, methodName, hookFunc)
@@ -317,13 +336,11 @@ end
 local function HookEditMode()
     if not EditModeManagerFrame then return end
 
+    -- Only set the flag here — do NOT call C_Timer.After or anything that
+    -- creates a new closure capturing this tainted execution context.
     local function ReembedIfDamageMeter(_, systemFrame)
         if systemFrame == DamageMeter then
-            C_Timer.After(0, function()
-                if ShouldEmbed() then
-                    EnhancedInterfaceObjectivesTrackerDamageMeterModule:EmbedSessionWindow()
-                end
-            end)
+            pendingReembed = true
         end
     end
 
@@ -372,5 +389,18 @@ hookFrame:SetScript("OnEvent", function(self, event)
         HookEditMode()
         HookSessionWindowSize()
         self:UnregisterEvent("PLAYER_LOGIN")
+    end
+end)
+
+-- OnUpdate poller: consume the pendingReembed flag set by the Edit Mode hook.
+-- This handler is invoked by the C++ game loop, which provides a fresh
+-- execution context not derived from the tainted Edit Mode call chain.
+-- Reading and clearing the flag here, then calling EmbedSessionWindow, keeps
+-- all the actual frame-manipulation work outside of any tainted context.
+hookFrame:SetScript("OnUpdate", function()
+    if not pendingReembed then return end
+    pendingReembed = false
+    if ShouldEmbed() then
+        EnhancedInterfaceObjectivesTrackerDamageMeterModule:EmbedSessionWindow()
     end
 end)

@@ -134,6 +134,57 @@ local MyAddon = MyAddon or {}
 local function helper() ... end
 ```
 
+### 5. Don't call `C_Timer.After` inside a tainted hook
+
+`C_Timer.After(delay, callback)` schedules a deferred Lua function. When the callback
+fires, it does NOT start a fresh taint context — **the closure inherits the taint of
+the execution context in which it was created**.
+
+If `C_Timer.After` is called inside a `hooksecurefunc` callback that ran during
+another addon's tainted call (e.g., `AccWideUILayoutSelection` calling
+`C_EditMode.SetActiveLayout()`), the deferred function carries that addon's taint.
+When it later does frame manipulation, those operations taint shared Blizzard state
+(frame positions, string tables), causing unrelated errors like
+`"attempt to perform string conversion on a secret string value"` in
+`ChatHistory_GetToken` / `HistoryKeeper.lua`.
+
+**Pattern to avoid:**
+```lua
+-- BAD: C_Timer.After inside a hooksecurefunc — closure captures tainted context
+hooksecurefunc(EditModeManagerFrame, "UpdateSystem", function(_, systemFrame)
+    if systemFrame == DamageMeter then
+        C_Timer.After(0, function()   -- taint from this call chain baked in
+            DoSomeWork()
+        end)
+    end
+end)
+```
+
+**Safe pattern — flag + OnUpdate poller:**
+```lua
+-- Only flip a flag inside the hook (boolean assignment doesn't spread taint)
+local pendingWork = false
+hooksecurefunc(EditModeManagerFrame, "UpdateSystem", function(_, systemFrame)
+    if systemFrame == DamageMeter then
+        pendingWork = true   -- safe: no C_Timer, no closures created here
+    end
+end)
+
+-- Separate OnUpdate handler — C++ game loop provides a fresh call origin,
+-- breaking the taint chain from the hook above.
+local poller = CreateFrame("Frame")
+poller:SetScript("OnUpdate", function()
+    if not pendingWork then return end
+    pendingWork = false
+    DoSomeWork()   -- now executes outside the tainted hook call chain
+end)
+```
+
+The `OnUpdate` script fires from the C++ game loop's own call origin, not from
+the tainted hook's call chain. Even though addon `OnUpdate` handlers are always
+tainted code, the *execution context* is a fresh one — values it reads from
+upvalues don't inherit the identity taint from the hook invocation that set the flag.
+
 Never overwrite or shadow Blizzard globals. Use addon-namespaced tables.
 
 ---
@@ -191,6 +242,12 @@ The error identifies the addon responsible. In our error messages, it will say `
   the anchored frame too.
 - **Writing to shared globals** in response to events — if Blizzard code later reads that
   global, taint spreads.
+- **Calling `C_Timer.After` inside a `hooksecurefunc` that may run in a tainted chain** —
+  when another addon (e.g. `AccWideUILayoutSelection`) calls `C_EditMode.SetActiveLayout()`,
+  our hooks on `EditModeManagerFrame:UpdateSystem` / `ApplyLayoutToFrame` fire in that
+  tainted context. Any `C_Timer.After` closure created there bakes in the taint and
+  spreads it on deferred execution. Use the **flag + OnUpdate poller** pattern instead
+  (see Safe Pattern #5 above).
 
 ---
 
