@@ -34,6 +34,9 @@ local function EnsureLabel()
     powerLabel = powerBar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     powerLabel:SetPoint("CENTER", powerBar, "CENTER", 0, 0)
     powerLabel:SetTextColor(1, 1, 1, 1)
+    powerLabel:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
+    powerLabel:SetShadowColor(0, 0, 0, 1)
+    powerLabel:SetShadowOffset(2, -2)
     powerLabel:SetText("")
 end
 
