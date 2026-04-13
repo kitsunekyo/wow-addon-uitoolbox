@@ -6,7 +6,7 @@
 set -euo pipefail
 
 ADDONS_DIR="/mnt/c/Program Files (x86)/World of Warcraft/_retail_/Interface/AddOns"
-SRC="$(cd "$(dirname "$0")" && pwd)/EnhancedInterface"
+SRC="$(cd "$(dirname "$0")/.." && pwd)/EnhancedInterface"
 DEST="$ADDONS_DIR/EnhancedInterface"
 
 # --- Preflight checks -------------------------------------------------------
