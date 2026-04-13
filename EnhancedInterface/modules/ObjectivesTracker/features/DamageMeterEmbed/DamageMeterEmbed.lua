@@ -159,11 +159,18 @@ function EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin:LayoutContents
     local meterHeight = cachedMeterHeight or METER_HEIGHT_FALLBACK
     self:SetHeightModifier("damageMeter", meterHeight)
 
-    -- Anchor the session window inside ContentsFrame on the next tick, after
-    -- UpdateHeight() has already run and expanded the module frame.
-    C_Timer.After(0, function()
-        self:EmbedSessionWindow()
-    end)
+    -- Signal the OnUpdate poller to embed the session window on the next tick,
+    -- after UpdateHeight() has already run and expanded the module frame.
+    --
+    -- TAINT HAZARD: LayoutContents() is called by Blizzard's ObjectiveTracker
+    -- layout system, which can be triggered during a call chain tainted by
+    -- another addon (e.g. CraftSim tainting a scroll/menu close path).  A
+    -- C_Timer.After closure created here would capture that tainted context and
+    -- propagate it — causing "secret number value" errors in MathUtil.lua (Clamp)
+    -- via ScrollBox when the game menu closes.
+    -- Instead we only set a boolean flag.  The OnUpdate poller fires from the
+    -- C++ game loop's own call origin, breaking the taint chain.
+    pendingEmbed = true
 end
 
 -- Reparent and anchor DamageMeterSessionWindow1 inside our ContentsFrame.
@@ -324,6 +331,17 @@ end)
 -- Flag set by the Edit Mode hook; consumed by the OnUpdate poller below.
 local pendingReembed = false
 
+-- Flag set by LayoutContents; consumed by the OnUpdate poller below.
+-- LayoutContents is called by Blizzard's ObjectiveTracker layout system, which
+-- can fire during call chains tainted by other addons (e.g. CraftSim tainting
+-- a scroll/menu close path).  Any C_Timer.After closure created inside that
+-- tainted context inherits and propagates the taint — causing "secret number
+-- value" errors in downstream Blizzard code (e.g. MathUtil.lua Clamp via
+-- ScrollBox).  Using a plain boolean flag here (no closure created) and
+-- consuming it from the OnUpdate poller (C++ game loop origin, clean context)
+-- breaks that taint chain entirely.
+local pendingEmbed = false
+
 local function TryHookMethod(object, methodName, hookFunc)
     if object and type(object[methodName]) == "function" then
         hooksecurefunc(object, methodName, hookFunc)
@@ -392,15 +410,23 @@ hookFrame:SetScript("OnEvent", function(self, event)
     end
 end)
 
--- OnUpdate poller: consume the pendingReembed flag set by the Edit Mode hook.
+-- OnUpdate poller: consume the pendingReembed flag set by the Edit Mode hook
+-- and the pendingEmbed flag set by LayoutContents.
 -- This handler is invoked by the C++ game loop, which provides a fresh
--- execution context not derived from the tainted Edit Mode call chain.
--- Reading and clearing the flag here, then calling EmbedSessionWindow, keeps
+-- execution context not derived from any tainted call chain.
+-- Reading and clearing the flags here, then calling EmbedSessionWindow, keeps
 -- all the actual frame-manipulation work outside of any tainted context.
 hookFrame:SetScript("OnUpdate", function()
-    if not pendingReembed then return end
-    pendingReembed = false
-    if ShouldEmbed() then
-        EnhancedInterfaceObjectivesTrackerDamageMeterModule:EmbedSessionWindow()
+    if pendingEmbed then
+        pendingEmbed = false
+        if ShouldEmbed() then
+            EnhancedInterfaceObjectivesTrackerDamageMeterModule:EmbedSessionWindow()
+        end
+    end
+    if pendingReembed then
+        pendingReembed = false
+        if ShouldEmbed() then
+            EnhancedInterfaceObjectivesTrackerDamageMeterModule:EmbedSessionWindow()
+        end
     end
 end)
