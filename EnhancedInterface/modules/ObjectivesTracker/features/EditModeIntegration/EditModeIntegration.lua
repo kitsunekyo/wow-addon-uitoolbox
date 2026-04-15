@@ -23,7 +23,15 @@ EnhancedInterface.EditModeCompanion.Register({
             set = function(value)
                 EnhancedInterface.db.objectivesTrackerDamageMeter.enabled = value
                 if EnhancedInterfaceObjectivesTrackerDamageMeterModule then
-                    ObjectiveTrackerManager:UpdateAll()
+                    -- Do NOT call ObjectiveTrackerManager:UpdateAll() directly here.
+                    -- This set callback fires from a plain addon SetScript("OnClick")
+                    -- handler — a fully tainted execution context.  Calling UpdateAll()
+                    -- from there runs the entire tracker layout chain (sort by uiOrder,
+                    -- LayoutContents, SetHeightModifier, UIParent_ManageFramePositions)
+                    -- with taint, causing "secret number value" errors downstream.
+                    -- Instead, signal the OnUpdate poller in DamageMeterEmbed to call
+                    -- UpdateAll() from the clean C++ game loop context.
+                    EnhancedInterfaceObjectivesTrackerDamageMeterModule.RequestUpdateAll()
                 end
             end,
         },

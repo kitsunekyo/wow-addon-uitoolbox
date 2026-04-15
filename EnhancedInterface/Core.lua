@@ -104,10 +104,31 @@ function EnhancedInterface:ADDON_LOADED(addonName)
 end
 
 function EnhancedInterface:PLAYER_ENTERING_WORLD()
+    -- Do NOT dispatch OnZoneChanged directly here.
+    --
+    -- TAINT HAZARD: PLAYER_ENTERING_WORLD can fire inside a call chain tainted
+    -- by another addon.  Dispatching module:OnZoneChanged() synchronously from
+    -- this handler causes AutoCollapse to call frame:SetCollapsed() on
+    -- ObjectiveTracker section frames from a tainted context, which triggers the
+    -- tracker layout system with taint and can cascade into downstream Blizzard
+    -- code (UIParent_ManageFramePositions, WorldMap pin SetPropagateMouseClicks).
+    -- Store the zone data in a plain upvalue; the OnUpdate handler below
+    -- dispatches it from the clean C++ game loop context.
     local inInstance, instanceType = IsInInstance()
-    for _, module in ipairs(self.modules) do
-        if module.OnZoneChanged then
-            module:OnZoneChanged(inInstance, instanceType)
+    self._pendingZoneChanged = { inInstance, instanceType }
+end
+
+-- OnUpdate: consume _pendingZoneChanged set by PLAYER_ENTERING_WORLD.
+-- Fires from the C++ game loop (clean execution context) so module callbacks
+-- (e.g. AutoCollapse:SetCollapsed()) run untainted.
+EnhancedInterface:SetScript("OnUpdate", function(self)
+    if self._pendingZoneChanged then
+        local args = self._pendingZoneChanged
+        self._pendingZoneChanged = nil
+        for _, module in ipairs(self.modules) do
+            if module.OnZoneChanged then
+                module:OnZoneChanged(args[1], args[2])
+            end
         end
     end
-end
+end)

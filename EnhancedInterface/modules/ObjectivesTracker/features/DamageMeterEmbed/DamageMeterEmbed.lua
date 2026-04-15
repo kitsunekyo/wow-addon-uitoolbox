@@ -297,9 +297,9 @@ local function TryRegister()
 
     ObjectiveTrackerManager:SetModuleContainer(EnhancedInterfaceObjectivesTrackerDamageMeterModule, ObjectiveTrackerFrame)
 
-    C_Timer.After(0, function()
-        ObjectiveTrackerManager:UpdateAll()
-    end)
+    -- Signal the OnUpdate poller to call UpdateAll on the next tick.
+    -- See pendingUpdateAll declaration above for the taint rationale.
+    pendingUpdateAll = true
 end
 
 hooksecurefunc(ObjectiveTrackerManager, "Init", TryRegister)
@@ -327,6 +327,27 @@ end)
 -- separate OnUpdate handler, driven by the game loop's own C++ call origin
 -- (not the tainted hook call chain), polls the flag and performs the actual
 -- re-embed outside of the tainted context.
+
+-- Flag set by TryRegister() and RequestUpdateAll(); consumed by the OnUpdate
+-- poller below.
+-- TryRegister() is called from hooksecurefunc(ObjectiveTrackerManager, "Init", ...)
+-- and from a PLAYER_ENTERING_WORLD handler.  Both paths can execute in a tainted
+-- context (another addon's Init chain, or a tainted PLAYER_ENTERING_WORLD firing).
+-- RequestUpdateAll() is called from the EditModeIntegration set callback, which
+-- runs in a plain addon SetScript("OnClick") context — fully tainted.
+-- Any C_Timer.After closure created in those contexts would bake in that taint
+-- and propagate it into ObjectiveTrackerManager:UpdateAll(), which touches frame
+-- positions and can taint the WorldMap open path (FlightPointDataProvider →
+-- MapCanvas → pin UpdateMousePropagation → SetPropagateMouseClicks [BLOCKED]).
+-- Using a plain boolean flag here (no closure) and consuming it from the OnUpdate
+-- poller (C++ game loop origin, clean context) breaks that taint chain.
+local pendingUpdateAll = false
+
+-- Public accessor for other modules (e.g. EditModeIntegration) to schedule an
+-- UpdateAll without calling it directly from a tainted execution context.
+function EnhancedInterfaceObjectivesTrackerDamageMeterModule.RequestUpdateAll()
+    pendingUpdateAll = true
+end
 
 -- Flag set by the Edit Mode hook; consumed by the OnUpdate poller below.
 local pendingReembed = false
@@ -417,6 +438,10 @@ end)
 -- Reading and clearing the flags here, then calling EmbedSessionWindow, keeps
 -- all the actual frame-manipulation work outside of any tainted context.
 hookFrame:SetScript("OnUpdate", function()
+    if pendingUpdateAll then
+        pendingUpdateAll = false
+        ObjectiveTrackerManager:UpdateAll()
+    end
     if pendingEmbed then
         pendingEmbed = false
         if ShouldEmbed() then

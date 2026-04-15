@@ -404,6 +404,28 @@ frame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
 local baselineSet       = false  -- guards the first PLAYER_TALENT_UPDATE on login
 local lastSavedConfigID = nil    -- last known saved loadout config ID
 
+-- Timestamps (GetTime() targets) for deferred work, set by TriggerRestore and
+-- TriggerSnapshotBar and consumed by the OnUpdate handler below.
+--
+-- TAINT HAZARD: PLAYER_TALENT_UPDATE and TRAIT_CONFIG_UPDATED can fire inside a
+-- call chain tainted by another addon (e.g. a talent UI addon during a loadout
+-- switch).  C_Timer.After closures created in those contexts bake in the tainted
+-- execution context permanently.  When the closure fires, it calls
+-- RestoreAllEnabled() or SnapshotBar() from that tainted context, which can
+-- propagate taint through PickupAction/PlaceAction into Blizzard's action bar
+-- secure handling.
+-- Fix: store only a plain number (GetTime() + delay) in an upvalue — no closure
+-- is created.  The OnUpdate handler fires from the C++ game loop (clean context)
+-- and does the actual work there.
+--
+-- Note: GetTime() called from a tainted context returns a tainted number, but
+-- that number is only compared to another GetTime() call inside OnUpdate (also
+-- from the clean C++ game loop context) — never written to a Blizzard frame
+-- property.  The arithmetic stays inside addon-owned upvalues, so taint does
+-- not escape into Blizzard's secure execution paths.
+local pendingRestoreAt   = nil  -- GetTime() target for deferred restore, or nil
+local pendingSnapshotsAt = {}   -- barIndex → GetTime() target for deferred snapshot
+
 -- Returns the currently-selected saved config ID for the active spec, or nil.
 local function GetCurrentSavedConfigID()
     local specID = PlayerUtil and PlayerUtil.GetCurrentSpecID and PlayerUtil.GetCurrentSpecID()
@@ -418,29 +440,18 @@ end
 -- the stored snapshot before we get a chance to restore it.
 local function TriggerRestore()
     if restorePending then return end
-    restorePending  = true
-    restoringBars   = true
-    C_Timer.After(0.5, function()
-        restorePending = false
-        SharedBars:RestoreAllEnabled()
-    end)
+    restorePending   = true
+    restoringBars    = true
+    pendingRestoreAt = GetTime() + 0.5
 end
 
 -- Debounced re-snapshot for a single bar after a live edit.
 -- Uses a 0.1s defer so that rapid multi-slot operations (e.g. drag-swap
 -- between two slots on the same bar) only generate one snapshot write.
 local function TriggerSnapshotBar(barIndex)
-    if pendingSnapshots[barIndex] then return end
-    pendingSnapshots[barIndex] = true
-    C_Timer.After(0.1, function()
-        pendingSnapshots[barIndex] = nil
-        -- Re-check: bar may have been disabled between the edit and the timer.
-        local db    = GetDB()
-        local entry = db.bars[barIndex]
-        if entry and entry.enabled then
-            SharedBars:SnapshotBar(barIndex)
-        end
-    end)
+    if pendingSnapshotsAt[barIndex] then return end
+    pendingSnapshots[barIndex]   = true
+    pendingSnapshotsAt[barIndex] = GetTime() + 0.1
 end
 
 frame:SetScript("OnEvent", function(_, event, ...)
@@ -486,5 +497,33 @@ frame:SetScript("OnEvent", function(_, event, ...)
         if not (entry and entry.enabled) then return end
 
         TriggerSnapshotBar(barIndex)
+    end
+end)
+
+-- OnUpdate: consume pendingRestoreAt and pendingSnapshotsAt timestamps set by
+-- TriggerRestore / TriggerSnapshotBar.  Fires from the C++ game loop (clean
+-- execution context), so RestoreAllEnabled() and SnapshotBar() run untainted
+-- regardless of what execution context originally called TriggerRestore/
+-- TriggerSnapshotBar.
+frame:SetScript("OnUpdate", function()
+    local now = GetTime()
+
+    if pendingRestoreAt and now >= pendingRestoreAt then
+        pendingRestoreAt = nil
+        restorePending   = false
+        SharedBars:RestoreAllEnabled()
+    end
+
+    for barIndex, fireAt in pairs(pendingSnapshotsAt) do
+        if now >= fireAt then
+            pendingSnapshotsAt[barIndex] = nil
+            pendingSnapshots[barIndex]   = nil
+            -- Re-check: bar may have been disabled between the edit and now.
+            local db    = GetDB()
+            local entry = db.bars[barIndex]
+            if entry and entry.enabled then
+                SharedBars:SnapshotBar(barIndex)
+            end
+        end
     end
 end)
