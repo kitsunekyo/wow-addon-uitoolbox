@@ -4,14 +4,6 @@
 - avoid tainted GetHeight() in DamageMeterEmbed SetHeightModifier call
 - eliminate taint source in DamageMeterEmbed causing QuestMapFrame errors
 
-### Documentation
-- Update PRD screenshot
-
-## [0.1.1]
-
-### Changed
-- Add deploy script
-
 ## [0.1.0]
 
 ### Added
@@ -19,19 +11,7 @@
 - Add 'Hide when mounted' option to Personal Resource Display settings
 - Add event handling for combat session updates and player regen
 
-### Documentation
-- Add development notes
-- Add tools and resources
-- Update readme
-- Add screenshots
-- Update agents file
-
 ## [0.0.1]
-
-### Changed
-- Move addon settings to Edit Mode companion panels
-- Update addon settings category name to 'Enhanced Interface'
-- Rename addon from UIToolbox to Enhanced Interface
 
 ### Added
 - Companion dialog for Edit Mode UIToolbox settings
@@ -47,20 +27,8 @@
 - Nameplate size slider
 - More toggle customization options
 
-### Changed
-- Remove freemove global setting
-- Switch from dropdown to button
-- Move damage meter drag toggle into button
-- New structure
-
 ### Fixed
 - Objectives don't collapse when entering delve
 - Error when flying over worldquest area
 - Jumping damage meter frame
 - Lua error
-
-### Documentation
-- Add knowledge files for tabs, buttons, frames, and form elements
-- Add knowledge documentation
-- Add custom textures documentation
-- Add dev instructions
