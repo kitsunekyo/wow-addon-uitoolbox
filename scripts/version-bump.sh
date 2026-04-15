@@ -8,8 +8,9 @@ set -euo pipefail
 # --- Setup -------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-TOC_FILE="$SCRIPT_DIR/EnhancedInterface/EnhancedInterface.toc"
-CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+TOC_FILE="$REPO_ROOT/EnhancedInterface/EnhancedInterface.toc"
+CHANGELOG_FILE="$REPO_ROOT/CHANGELOG.md"
 
 if [ $# -ne 1 ]; then
     echo "Usage: $0 <version>" >&2

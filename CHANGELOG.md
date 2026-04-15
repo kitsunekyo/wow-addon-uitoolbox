@@ -1,18 +1,18 @@
-## [0.1.4] - 2026-04-09### Fixed
+## [0.1.4]
+
+### Fixed
 - avoid tainted GetHeight() in DamageMeterEmbed SetHeightModifier call
 - eliminate taint source in DamageMeterEmbed causing QuestMapFrame errors
-
-
 
 ### Documentation
 - Update PRD screenshot
 
-## [0.1.1] - 2024
+## [0.1.1]
 
 ### Changed
 - Add deploy script
 
-## [0.1.0] - 2024
+## [0.1.0]
 
 ### Added
 - Simplify power bar border handling and add top border texture
@@ -26,7 +26,7 @@
 - Add screenshots
 - Update agents file
 
-## [0.0.1] - 2024
+## [0.0.1]
 
 ### Changed
 - Move addon settings to Edit Mode companion panels
