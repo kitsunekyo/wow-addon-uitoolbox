@@ -62,12 +62,12 @@ done <<< "$COMMITS"
 echo "Changes since $LAST_TAG:"
 echo ""
 if [ -n "$FEATURES" ]; then
-    echo "  ### Added"
+    echo "  ### Changes"
     printf '%s' "$FEATURES"
     echo ""
 fi
 if [ -n "$FIXES" ]; then
-    echo "  ### Fixed"
+    echo "  ### Fixes"
     printf '%s' "$FIXES"
     echo ""
 fi
@@ -135,11 +135,11 @@ CHANGELOG_SECTION="## [$NEW_VERSION] - $RELEASE_DATE"$'\n\n'
 
 # Build categorized section
 if [ -n "$FEATURES" ]; then
-    CHANGELOG_SECTION+="### Added"$'\n'"${FEATURES}"$'\n'
+    CHANGELOG_SECTION+="### Changes"$'\n'"${FEATURES}"$'\n'
 fi
 
 if [ -n "$FIXES" ]; then
-    CHANGELOG_SECTION+="### Fixed"$'\n'"${FIXES}"$'\n'
+    CHANGELOG_SECTION+="### Fixes"$'\n'"${FIXES}"$'\n'
 fi
 
 # Prepend new section to CHANGELOG
