@@ -155,14 +155,6 @@ fi
 
 # --- Review and confirm ------------------------------------------------------
 
-echo ""
-echo "=========================================="
-echo "Changelog entry for v$NEW_VERSION:"
-echo "=========================================="
-echo "$CHANGELOG_SECTION"
-echo "=========================================="
-echo ""
-
 if $DRY_RUN; then
     echo "[dry-run] No files written. Exiting."
     exit 0
