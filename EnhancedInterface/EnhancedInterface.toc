@@ -1,7 +1,7 @@
 ## Interface: 120001
 ## Title: Enhanced Interface
 ## Notes: A collection of tools that improve the World of Warcraft default UI.
-## Version: 0.1.4
+## Version: 0.2.0
 ## Author: aspieslechner
 ## Dependencies: Blizzard_ObjectiveTracker
 ## OptionalDependencies: Blizzard_DamageMeter, Blizzard_PersonalResourceDisplay

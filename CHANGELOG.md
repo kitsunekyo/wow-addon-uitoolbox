@@ -1,3 +1,14 @@
+## [0.2.0] - 2026-04-15
+
+### Added
+- Add text shadow to power display number
+- Add power value number display
+
+### Fixed
+- No longer force Personal Resource Display to be shown, if the user has disabled it in the WoW Settings
+- Fixed several taint errors.
+
+
 ## [0.1.4]
 
 ### Fixed
