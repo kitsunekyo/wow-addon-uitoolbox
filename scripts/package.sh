@@ -6,14 +6,15 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="${SCRIPT_DIR}/build"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+BUILD_DIR="${REPO_ROOT}/build"
 ADDON_NAME="EnhancedInterface"
 
 # Create build directory if it doesn't exist
 mkdir -p "${BUILD_DIR}"
 
 # Get the latest git tag (semver version)
-VERSION=$(cd "${SCRIPT_DIR}" && git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+VERSION=$(cd "${REPO_ROOT}" && git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
 
 # Remove 'v' prefix if present (e.g., v1.0.0 -> 1.0.0)
 VERSION="${VERSION#v}"
@@ -65,5 +66,5 @@ print(f"✓ Addon packaged successfully: {output_file}")
 print(f"File size: {size_kb:.1f} KB")
 PYTHON_SCRIPT
 
-python3 "${TEMP_SCRIPT}" "${SCRIPT_DIR}" "${ADDON_NAME}" "${OUTPUT_FILE}"
+python3 "${TEMP_SCRIPT}" "${REPO_ROOT}" "${ADDON_NAME}" "${OUTPUT_FILE}"
 rm "${TEMP_SCRIPT}"
