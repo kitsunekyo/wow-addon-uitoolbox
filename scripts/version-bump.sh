@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # version-bump.sh — Bump addon version, update CHANGELOG, and create git tag.
-# Usage: ./version-bump.sh [--dry-run] <version>
-# Example: ./version-bump.sh 0.1.2
-#          ./version-bump.sh --dry-run 0.1.2
+# Usage: ./version-bump.sh [--dry-run]
+# Example: ./version-bump.sh
+#          ./version-bump.sh --dry-run
 
 set -euo pipefail
 
@@ -14,35 +14,82 @@ TOC_FILE="$REPO_ROOT/EnhancedInterface/EnhancedInterface.toc"
 CHANGELOG_FILE="$REPO_ROOT/CHANGELOG.md"
 
 DRY_RUN=false
-ARGS=()
 for arg in "$@"; do
     if [ "$arg" = "--dry-run" ]; then
         DRY_RUN=true
     else
-        ARGS+=("$arg")
+        echo "Unknown argument: $arg" >&2
+        echo "Usage: $0 [--dry-run]" >&2
+        exit 1
     fi
 done
 
-if [ ${#ARGS[@]} -ne 1 ]; then
-    echo "Usage: $0 [--dry-run] <version>" >&2
-    echo "Example: $0 0.1.2" >&2
+# --- Determine current version and compute bump ------------------------------
+
+CURRENT_VERSION=$(grep "^## Version:" "$TOC_FILE" | cut -d' ' -f3)
+if ! [[ "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "ERROR: Could not parse current version from TOC: '$CURRENT_VERSION'" >&2
     exit 1
 fi
 
-NEW_VERSION="${ARGS[0]}"
+MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
 
-# Validate version format (basic check)
-if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "ERROR: Invalid version format. Expected X.Y.Z (e.g., 0.1.2)" >&2
-    exit 1
+# --- Preview commits ---------------------------------------------------------
+
+LAST_TAG=$(git -C "$SCRIPT_DIR" describe --tags --abbrev=0 2>/dev/null || echo "")
+
+if [ -z "$LAST_TAG" ]; then
+    COMMITS=$(git -C "$SCRIPT_DIR" log --oneline --pretty=format:"%h %s")
+else
+    COMMITS=$(git -C "$SCRIPT_DIR" log "${LAST_TAG}..HEAD" --oneline --pretty=format:"%h %s")
 fi
+
+FEATURES=""
+FIXES=""
+
+while IFS= read -r line; do
+    if [ -z "$line" ]; then continue; fi
+    COMMIT_MSG=$(echo "$line" | cut -d' ' -f2-)
+    if [[ "$COMMIT_MSG" =~ ^feat: ]]; then
+        FEATURES+="- $(echo "$COMMIT_MSG" | sed 's/^feat: //')"$'\n'
+    elif [[ "$COMMIT_MSG" =~ ^fix: ]]; then
+        FIXES+="- $(echo "$COMMIT_MSG" | sed 's/^fix: //')"$'\n'
+    fi
+done <<< "$COMMITS"
+
+echo "Changes since $LAST_TAG:"
+echo ""
+if [ -n "$FEATURES" ]; then
+    echo "  ### Added"
+    printf '%s' "$FEATURES"
+    echo ""
+fi
+if [ -n "$FIXES" ]; then
+    echo "  ### Fixed"
+    printf '%s' "$FIXES"
+    echo ""
+fi
+
+echo "Current version: $CURRENT_VERSION"
+echo ""
+echo "  1) patch  →  $MAJOR.$MINOR.$((PATCH + 1))"
+echo "  2) minor  →  $MAJOR.$((MINOR + 1)).0"
+echo "  3) major  →  $((MAJOR + 1)).0.0"
+echo ""
+read -r -p "Bump type [1/2/3]: " BUMP_CHOICE
+
+case "$BUMP_CHOICE" in
+    1) NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))" ;;
+    2) NEW_VERSION="$MAJOR.$((MINOR + 1)).0" ;;
+    3) NEW_VERSION="$((MAJOR + 1)).0.0" ;;
+    *) echo "ERROR: Invalid choice '$BUMP_CHOICE'" >&2; exit 1 ;;
+esac
+
+echo ""
 
 # --- Preflight checks -------------------------------------------------------
-
-if [ ! -f "$TOC_FILE" ]; then
-    echo "ERROR: TOC file not found: $TOC_FILE" >&2
-    exit 1
-fi
 
 if [ ! -f "$CHANGELOG_FILE" ]; then
     echo "ERROR: CHANGELOG file not found: $CHANGELOG_FILE" >&2
@@ -81,42 +128,10 @@ fi
 
 # --- Generate new CHANGELOG --------------------------------------------------
 
-echo "Generating changelog from git history..."
-
-# Get current date
 RELEASE_DATE=$(date +%Y-%m-%d)
 
-# Extract commits since last tag
-LAST_TAG=$(git -C "$SCRIPT_DIR" describe --tags --abbrev=0 2>/dev/null || echo "")
-
-if [ -z "$LAST_TAG" ]; then
-    # No previous tag, use all commits
-    COMMITS=$(git -C "$SCRIPT_DIR" log --oneline --pretty=format:"%h %s")
-else
-    # Commits since last tag
-    COMMITS=$(git -C "$SCRIPT_DIR" log "${LAST_TAG}..HEAD" --oneline --pretty=format:"%h %s")
-fi
-
-# Generate changelog section
+# Generate changelog section (reuse FEATURES/FIXES/LAST_TAG from preview above)
 CHANGELOG_SECTION="## [$NEW_VERSION] - $RELEASE_DATE"$'\n\n'
-
-# Categorize commits
-FEATURES=""
-FIXES=""
-
-while IFS= read -r line; do
-    if [ -z "$line" ]; then
-        continue
-    fi
-    
-    COMMIT_MSG=$(echo "$line" | cut -d' ' -f2-)
-    
-    if [[ "$COMMIT_MSG" =~ ^feat: ]]; then
-        FEATURES+="- $(echo "$COMMIT_MSG" | sed 's/^feat: //')"$'\n'
-    elif [[ "$COMMIT_MSG" =~ ^fix: ]]; then
-        FIXES+="- $(echo "$COMMIT_MSG" | sed 's/^fix: //')"$'\n'
-    fi
-done <<< "$COMMITS"
 
 # Build categorized section
 if [ -n "$FEATURES" ]; then
