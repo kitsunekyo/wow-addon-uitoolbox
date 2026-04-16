@@ -63,7 +63,12 @@ end
 
 function PowerValueDisplay:SetEnabled(enabled)
     EnhancedInterface.db.powerValueDisplay.enabled = enabled
-    UpdateLabel()
+    -- Defer via OnUpdate poller (C++ game loop origin, clean context).
+    -- Calling UpdateLabel() → EnsureLabel() → SetFont() directly here would
+    -- execute in the tainted OnClick call chain, tainting the global font-metrics
+    -- cache and causing "secret number value" errors in UIWidgetTemplateBase:Setup()
+    -- when Blizzard reads GetStringWidth() on world-map marker FontStrings.
+    pendingUpdate = true
 end
 
 -- ── Event listener ────────────────────────────────────────────────────────────
