@@ -1,3 +1,9 @@
+## [0.2.1] - 2026-04-18
+
+### Fixes
+- defer SetFont/SetText in SetEnabled to avoid font-cache taint
+
+
 ## [0.2.0] - 2026-04-15
 
 ### Changes
