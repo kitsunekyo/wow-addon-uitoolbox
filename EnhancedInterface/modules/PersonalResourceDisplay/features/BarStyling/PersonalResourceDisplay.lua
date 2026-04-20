@@ -357,16 +357,29 @@ function PersonalResourceDisplay:TryInstallHooks()
     -- (e.g. inside SetupHealthBar at the end, or future callers) is intercepted.
     -- This runs after our per-method hooks and re-hides the container whenever
     -- the feature is enabled, closing the race window entirely.
+    --
+    -- TAINT HAZARD: calling frame.HealthBarsContainer:Hide() directly from this
+    -- hook runs in Blizzard's call chain, which can be reached from tainted addon
+    -- code (e.g. another addon calling SetupHealthBar). Hide() on a PRD sub-frame
+    -- in a tainted context propagates taint into the PRD layout system.
+    -- Fix: set pendingApply = true (plain boolean write) and let OnUpdate handle it.
     local frame = GetFrame()
     if frame and frame.HealthBarsContainer then
         hooksecurefunc(frame.HealthBarsContainer, "Show", function()
             if IsHideHealthBarEnabled() then
-                frame.HealthBarsContainer:Hide()
+                pendingApply = true
             end
         end)
     end
 
     hooksInstalled = true
+end
+
+-- Schedules a deferred re-apply of all PRD styles on the next OnUpdate tick.
+-- Use this instead of calling ApplyToCurrentPlayerNameplate() directly from any
+-- tainted execution context (event handlers, OnClick callbacks, hooksecurefunc).
+function PersonalResourceDisplay:RequestApply()
+    pendingApply = true
 end
 
 -- Install hooks immediately at module-load time.
@@ -385,13 +398,22 @@ initFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 
 initFrame:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_MOUNT_DISPLAY_CHANGED" then
-        PersonalResourceDisplay:ApplyMountVisibility()
+        -- TAINT HAZARD: PLAYER_MOUNT_DISPLAY_CHANGED can fire inside a tainted call
+        -- chain (e.g. another addon triggering a mount state change). Calling
+        -- ApplyMountVisibility() directly here calls frame:Hide()/Show() on a
+        -- protected Edit Mode frame from a potentially tainted context, spreading
+        -- taint into UIParent_ManageFramePositions and causing downstream errors.
+        -- Fix: defer via pendingApply flag; OnUpdate consumes it in a clean context.
+        pendingApply = true
         return
     end
 
     if event == "PLAYER_REGEN_ENABLED" then
-        -- Combat just ended; flush any deferred mount-hide/show state.
-        PersonalResourceDisplay:ApplyMountVisibility()
+        -- TAINT HAZARD: same as PLAYER_MOUNT_DISPLAY_CHANGED above.
+        -- Also, PLAYER_REGEN_ENABLED fires just as combat ends — frame operations
+        -- are now allowed, but the event itself can still arrive in a tainted chain.
+        -- Defer via pendingApply so OnUpdate does the actual Show/Hide in clean context.
+        pendingApply = true
         return
     end
 

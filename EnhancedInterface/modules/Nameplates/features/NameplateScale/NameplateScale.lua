@@ -117,6 +117,40 @@ end
 
 -- ── Initialization ────────────────────────────────────────────────────────────
 
+-- Flags set by hooksecurefunc callbacks; consumed by the OnUpdate poller.
+--
+-- TAINT HAZARD: hooksecurefunc callbacks on NamePlateUnitFrameMixin:ApplyFrameOptions
+-- and NamePlateDriverMixin:UpdateNamePlateOptions fire inside Blizzard's nameplate
+-- layout pipeline, but that pipeline can be triggered by tainted addon code (e.g.
+-- another addon changing a CVar, calling ApplyFrameOptions, or triggering
+-- UpdateNamePlateOptions). Calling SetScale() or C_NamePlate.SetNamePlateSize()
+-- directly from these hooks runs in a potentially tainted context, tainting the
+-- frame's scale property or nameplate dimensions — which Blizzard's secure layout
+-- system reads later, producing downstream "secret number value" errors.
+-- Fix: set boolean flags only inside the hooks; the OnUpdate poller fires from the
+-- C++ game loop's own call origin, providing a clean execution context for the
+-- actual frame writes.
+local pendingScaleFrame = nil   -- specific UnitFrame to scale (most recent hook arg)
+local pendingScaleAll   = false -- set when all seen frames need re-scaling
+local pendingWidth      = false -- set when container width correction is needed
+
+local pollerFrame = CreateFrame("Frame")
+pollerFrame:SetScript("OnUpdate", function()
+    if pendingScaleFrame then
+        local f = pendingScaleFrame
+        pendingScaleFrame = nil
+        ScaleUnitFrame(f)
+    end
+    if pendingScaleAll then
+        pendingScaleAll = false
+        ScaleAllSeen()
+    end
+    if pendingWidth then
+        pendingWidth = false
+        CorrectContainerWidth()
+    end
+end)
+
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("VARIABLES_LOADED")
 
@@ -126,13 +160,13 @@ frame:SetScript("OnEvent", function(_, event)
         -- and whenever Blizzard re-applies options (CVar change, etc.).
         hooksecurefunc(NamePlateUnitFrameMixin, "ApplyFrameOptions", function(self)
             seenFrames[self] = true
-            ScaleUnitFrame(self)
+            pendingScaleFrame = self
         end)
 
         -- Hook UpdateNamePlateOptions — fires after Blizzard sets the container
         -- size via C_NamePlate.SetNamePlateSize. We correct the width here.
         hooksecurefunc(NamePlateDriverMixin, "UpdateNamePlateOptions", function()
-            CorrectContainerWidth()
+            pendingWidth = true
         end)
 
         frame:UnregisterEvent("VARIABLES_LOADED")

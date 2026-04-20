@@ -439,8 +439,16 @@ end)
 -- all the actual frame-manipulation work outside of any tainted context.
 hookFrame:SetScript("OnUpdate", function()
     if pendingUpdateAll then
-        pendingUpdateAll = false
-        ObjectiveTrackerManager:UpdateAll()
+        -- COMBAT LOCKDOWN GUARD: ObjectiveTrackerManager:UpdateAll() drives a
+        -- full tracker repaint that eventually calls QuestSuperTracking:
+        -- CacheCurrentSuperTrackInfo() → QuestDataProvider:RefreshAllData() →
+        -- MapCanvas:AcquirePin() → Button:SetPassThroughButtons() — a protected
+        -- function that is blocked during combat. Leave the flag set and retry
+        -- on the next tick until combat ends.
+        if not InCombatLockdown() then
+            pendingUpdateAll = false
+            ObjectiveTrackerManager:UpdateAll()
+        end
     end
     if pendingEmbed then
         pendingEmbed = false
