@@ -25,6 +25,9 @@ btn:GetHighlightTexture():SetAtlas("auctionhouse-filterdropdown-arrow-open", tru
 btn:GetHighlightTexture():SetAllPoints(btn)
 
 btn:SetScript("OnClick", function() ... end)
+-- NOTE: if the OnClick handler mutates Blizzard-managed frames (SetPoint, SetHeight,
+-- Show, Hide, SetScale, etc.), defer via a flag + OnUpdate poller rather than calling
+-- those APIs directly here. See knowledge/taint-and-secure-execution.md.
 btn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
     GameTooltip:SetText("My Action", 1, 1, 1)
@@ -122,20 +125,34 @@ local dm = _G["DamageMeter"]
 -- Fires when player opens an additional meter window from the settings dropdown
 if dm and dm.ShowNewSessionWindow then
     hooksecurefunc(dm, "ShowNewSessionWindow", function()
-        C_Timer.After(0, TryInjectAll)  -- defer one tick for Blizzard to finish
+        -- Do NOT use C_Timer.After here. C_Timer.After closures created inside a
+        -- hooksecurefunc callback inherit the taint of whatever triggered the hook
+        -- (e.g. another addon calling ShowNewSessionWindow). The deferred callback
+        -- carries that taint and spreads it when it later writes to frames.
+        --
+        -- Instead, set a flag and let an OnUpdate poller handle the injection:
+        pendingInject = true
     end)
 end
 
--- Belt-and-suspenders: also catch the parent OnShow (login/reload)
+-- Belt-and-suspenders: also catch the parent OnShow (login/reload).
+-- HookScript callbacks have the same taint risk as hooksecurefunc — use a flag.
 if dm then
     dm:HookScript("OnShow", function()
-        C_Timer.After(0, TryInjectAll)
+        pendingInject = true
     end)
 end
+
+local injectionPoller = CreateFrame("Frame")
+injectionPoller:SetScript("OnUpdate", function()
+    if not pendingInject then return end
+    pendingInject = false
+    TryInjectAll()  -- safe: C++ game loop origin, clean context
+end)
 ```
 
-The `C_Timer.After(0, ...)` defers one frame, ensuring Blizzard has finished its own `OnLoad`/`OnShow`
-processing before you access the window's children.
+The OnUpdate poller fires from the C++ game loop's own call origin, breaking the taint
+chain from the hook before any frame access occurs.
 
 ---
 

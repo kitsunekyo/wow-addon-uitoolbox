@@ -36,6 +36,7 @@ EnhancedInterface/
 - `Core.lua` exposes the global `EnhancedInterface` frame. All settings live on `EnhancedInterface.db` (backed by `EnhancedInterfaceDB` SavedVariablesPerCharacter).
 - Each feature is a single `.lua` file (sometimes paired with an `EditModeIntegration.lua`). New features follow the same pattern: one file per feature under `modules/<Area>/features/<FeatureName>/`.
 - After adding a new file, register it in `EnhancedInterface.toc`.
+- **MANDATORY — taint safety:** Never call any frame-mutating API (`SetHeight`, `SetWidth`, `SetSize`, `SetPoint`, `ClearAllPoints`, `SetScale`, `SetAlpha`, `Show`, `Hide`, `SetShown`, `SetFont`, `SetText`, `SetStatusBarTexture`, `PixelUtil.*`, `C_NamePlate.*`, etc.) directly from a `hooksecurefunc` callback, a `SetScript("OnEvent", ...)` handler, or an addon button's `OnClick`/`OnMouseDown` script. Instead, set a boolean flag and consume it from an `OnUpdate` poller (which fires from the C++ game loop — a clean, untainted context). See `knowledge/taint-and-secure-execution.md` for the full rationale and canonical pattern. Exception: direct calls from WoW Settings UI callbacks (`Settings.RegisterAddOnSetting` handlers) are safe.
 
 ## Development Environment
 

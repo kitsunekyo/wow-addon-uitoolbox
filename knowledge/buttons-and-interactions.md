@@ -21,7 +21,12 @@ btn:SetSize(120, 22)
 btn:SetPoint("CENTER", parent, "CENTER")
 btn:SetText("Click Me")
 btn:SetScript("OnClick", function(self, mouseButton, down)
-    -- handle click
+    -- TAINT NOTE: OnClick is always a tainted execution context. Safe for
+    -- writing to SavedVariables, addon-owned state, or purely addon-owned frames.
+    -- If the handler must mutate Blizzard-managed frames (SetPoint, SetHeight,
+    -- Show, Hide, SetScale, SetFont, etc.), do NOT call those APIs here —
+    -- set a boolean flag and consume it from an OnUpdate poller instead.
+    -- See knowledge/taint-and-secure-execution.md for the canonical pattern.
 end)
 ```
 
@@ -124,9 +129,10 @@ Use `CheckButton` for togglable buttons (see text-and-form-elements.md for check
 local active = false
 btn:SetScript("OnClick", function(self)
     active = not active
+    -- SetText on an addon-owned button is fine from OnClick.
+    -- For mutations to Blizzard-managed frames use a flag + OnUpdate poller instead.
     if active then
         self:SetText("Active")
-        -- change texture/colour to indicate active state
     else
         self:SetText("Inactive")
     end
@@ -165,7 +171,8 @@ btn:RegisterForClicks("AnyUp")
 
 ## Button Width from Text
 
-To size a button to fit its text:
+To size a button to fit its text — call this at setup time (file-load or ADDON_LOADED),
+not from inside an event handler or hook:
 
 ```lua
 btn:SetText("Label")

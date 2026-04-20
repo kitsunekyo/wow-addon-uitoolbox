@@ -143,7 +143,13 @@ check:SetChecked(true)
 
 check:SetScript("OnClick", function(self)
     local enabled = self:GetChecked()
-    -- save and apply setting
+    -- Save the setting, then apply it.
+    -- TAINT NOTE: OnClick is always a tainted context. If applying the setting
+    -- requires mutating Blizzard-managed frames (SetPoint, SetHeight, Show, Hide,
+    -- SetScale, etc.), do NOT call those APIs here. Set a boolean flag and let an
+    -- OnUpdate poller perform the frame writes. See taint-and-secure-execution.md.
+    -- Direct calls are only safe when mutating purely addon-owned frames that
+    -- Blizzard's secure layout system will never read.
 end)
 ```
 
@@ -157,6 +163,7 @@ check:SetChecked(false)
 
 check:SetScript("OnClick", function(self)
     local enabled = self:GetChecked()
+    -- TAINT NOTE: same as above — defer Blizzard frame mutations via flag + OnUpdate.
 end)
 ```
 
@@ -204,7 +211,10 @@ slider:SetScript("OnValueChanged", function(self, value, userInput)
         -- user dragged/clicked (not SetValue)
         -- round to step if needed
         value = math.floor(value + 0.5)
-        -- apply setting
+        -- Apply setting.
+        -- TAINT NOTE: OnValueChanged is a tainted context. If applying the value
+        -- requires mutating Blizzard-managed frames, defer via flag + OnUpdate.
+        -- See taint-and-secure-execution.md.
     end
 end)
 ```
@@ -260,7 +270,9 @@ dropdownBtn:SetScript("OnClick", function(self)
             end, function()
                 selected = opt
                 dropdownBtn:SetText(selected .. " \226\150\190")
-                -- apply setting
+                -- Apply setting.
+                -- TAINT NOTE: menu callbacks are tainted contexts. If applying
+                -- requires mutating Blizzard-managed frames, defer via flag + OnUpdate.
             end)
         end
     end)

@@ -74,6 +74,58 @@ via `hooksecurefunc`), bypassing the need to call these APIs directly.
 
 ---
 
+## The Cardinal Rule for Frame Mutations
+
+> **Never call any frame-mutating API directly from a `hooksecurefunc` callback,
+> a `SetScript("OnEvent", ...)` handler, or an `OnClick`/`OnMouseDown` script.**
+> Always defer via a boolean flag consumed by an `OnUpdate` poller.
+
+Frame-mutating APIs include (but are not limited to): `SetHeight`, `SetWidth`,
+`SetSize`, `SetPoint`, `ClearAllPoints`, `SetScale`, `SetAlpha`, `Show`, `Hide`,
+`SetShown`, `SetFont`, `SetText`, `SetTextColor`, `SetStatusBarTexture`,
+`SetTexture`, `PixelUtil.*`, `C_NamePlate.SetNamePlateSize`.
+
+The reason: your hook or event handler runs in **whatever taint context triggered
+the original function**. If another addon (or a sequence of addon calls) triggered
+the Blizzard function that your hook is attached to, your callback runs in that
+tainted context. Any frame property you write in that context becomes tainted.
+Blizzard's secure layout code (e.g. `UIParent_ManageFramePositions`,
+`UIWidgetTemplateBase:Setup`) reads those properties later, inherits the taint,
+and errors when it tries to perform arithmetic or call a protected function.
+
+The `OnUpdate` poller fires from the C++ game loop's own call origin — a fresh,
+untainted execution context that breaks the taint chain.
+
+**Required pattern for ALL frame writes triggered by hooks or events:**
+
+```lua
+local pendingWork = false
+
+hooksecurefunc(SomeFrame, "SomeMethod", function()
+    pendingWork = true   -- plain boolean write; does NOT spread taint
+end)
+
+someListenerFrame:SetScript("OnEvent", function(_, event)
+    pendingWork = true   -- same: flag only, no frame calls
+end)
+
+local poller = CreateFrame("Frame")
+poller:SetScript("OnUpdate", function()
+    if not pendingWork then return end
+    pendingWork = false
+    -- safe to mutate frames here — C++ game loop origin, clean context
+    SomeFrame:SetHeight(42)
+    SomeFrame:SetPoint("TOP", UIParent, "TOP")
+end)
+```
+
+**Exception:** Frame mutations called from the WoW **Settings UI** panel (slider
+`onChange`, checkbox callbacks registered via `Settings.RegisterAddOnSetting`)
+execute in a clean Settings UI context and do not need deferral. Mutations called
+from addon-created button `OnClick` handlers ARE tainted and DO need deferral.
+
+---
+
 ## Safe Patterns
 
 ### 1. `hooksecurefunc` — the primary tool
@@ -96,6 +148,10 @@ end)
 - **Cannot be undone** without a full UI reload.
 - Since Patch 11.0.0 (TWW), certain core Lua functions cannot be hooked at all
   (e.g. `pcall`, `pairs`, `rawset`, `setmetatable`).
+- **The hook callback runs in whatever taint context triggered the original
+  function.** If the caller was tainted, your callback is tainted, and any frame
+  property you write becomes tainted. Use the flag + OnUpdate pattern for all
+  frame mutations (see The Cardinal Rule above).
 
 ### 2. `frame:HookScript` — for script handlers
 
@@ -107,6 +163,10 @@ end)
 
 Use instead of `frame:SetScript` when you want to add behavior without replacing existing
 handlers (which would break any previously registered secure handler).
+
+The same taint rule applies as for `hooksecurefunc`: the callback runs in whatever
+taint context triggered the script. Never call frame-mutating APIs directly from a
+`HookScript` callback — use the flag + OnUpdate pattern (see The Cardinal Rule above).
 
 ### 3. `InCombatLockdown()` guard — for protected frame modifications
 
@@ -120,8 +180,15 @@ Always check `InCombatLockdown()` before:
 - Calling `Show()`, `Hide()` on protected frames
 - Calling `SetAttribute()` on any frame
 - Calling `SetMovable()`, `EnableMouse()`, `SetPoint()` on protected frames or their parents/anchors
+- Calling `ObjectiveTrackerManager:UpdateAll()` or any full tracker repaint — these
+  cascade into `QuestSuperTracking:CacheCurrentSuperTrackInfo()` →
+  `QuestDataProvider:RefreshAllData()` → `Button:SetPassThroughButtons()` on WorldMap
+  pins, which is a protected function blocked during combat
 
-Queue the action to `PLAYER_REGEN_ENABLED` if it needs to run eventually.
+If the action must run eventually, set a flag and consume it in a `PLAYER_REGEN_ENABLED`
+event handler — but that handler must itself only set another flag for an OnUpdate poller
+to consume. **Do not call frame-mutating APIs directly from the `PLAYER_REGEN_ENABLED`
+handler** — it is still an event handler subject to the Cardinal Rule.
 
 ### 4. Avoid global pollution
 
@@ -228,12 +295,19 @@ The error identifies the addon responsible. In our error messages, it will say `
 
 | Module | Pattern | Why It's Safe |
 |---|---|---|
-| `NameplateScale` | `hooksecurefunc(NamePlateUnitFrameMixin, "ApplyFrameOptions", ...)` | Receives `self` cleanly from Blizzard's call; never queries the gated APIs directly |
+| `NameplateScale` | `hooksecurefunc(NamePlateUnitFrameMixin, "ApplyFrameOptions", ...)` sets `pendingScaleFrame = self`; OnUpdate poller calls `SetScale` | Hook only writes a flag; frame mutation runs from the C++ game loop origin |
+| `BarStyling` | All `hooksecurefunc` callbacks and event handlers set `pendingApply = true`; OnUpdate calls `ApplyToCurrentPlayerNameplate()` | Same flag+OnUpdate pattern; no frame writes in any hook or event handler |
+| `PowerValueDisplay` | `hooksecurefunc` callbacks set `pendingSetup`; events set `pendingInit`/`pendingUpdate`; OnUpdate calls `EnsureLabel`/`UpdateLabel` | `SetFont`/`SetText` only ever execute from the C++ game loop context |
 | `FreeMove` | `if InCombatLockdown() then return end` guard | Prevents attempting protected frame moves in combat |
 | All modules | Never touching Blizzard globals | No global pollution risk |
 
 ### Risk areas to watch
 
+- **Calling frame-mutating APIs directly from any hook or event handler** — the most
+  common source of taint bugs in this addon. Always use the flag + OnUpdate pattern
+  (see The Cardinal Rule above). This applies to `hooksecurefunc` callbacks,
+  `SetScript("OnEvent", ...)` handlers, and `OnClick`/`OnMouseDown` scripts on
+  addon-created buttons whose actions affect Blizzard-managed frames.
 - **Hooking Blizzard event handlers** with `SetScript` instead of `HookScript` — replaces
   and destroys the original secure handler; use `HookScript` instead.
 - **Parenting addon frames to protected frames** — the parent inherits lockdown restrictions;
@@ -247,7 +321,7 @@ The error identifies the addon responsible. In our error messages, it will say `
   our hooks on `EditModeManagerFrame:UpdateSystem` / `ApplyLayoutToFrame` fire in that
   tainted context. Any `C_Timer.After` closure created there bakes in the taint and
   spreads it on deferred execution. Use the **flag + OnUpdate poller** pattern instead
-  (see Safe Pattern #5 above).
+  (see The Cardinal Rule above).
 
 ---
 
@@ -257,6 +331,8 @@ The error identifies the addon responsible. In our error messages, it will say `
 |---|---|
 | Observe a Blizzard function call | `hooksecurefunc` |
 | Observe a frame's script event | `frame:HookScript(...)` |
+| **Mutate a frame from a hook or event** | **Set a boolean flag; call the mutation from an OnUpdate poller** |
+| Mutate a frame from a Settings UI callback | Direct call is fine (clean context) |
 | Modify a protected frame | Only outside combat; check `InCombatLockdown()` |
 | Access a frame gated by `AllowedWhenUntainted` | Use a hook that receives the frame as an argument |
 | Debug which addon caused taint | `issecurevariable("globalName")` |

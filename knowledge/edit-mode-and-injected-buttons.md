@@ -59,16 +59,30 @@ When Edit Mode applies a saved layout, it calls `EditModeManagerFrame:ApplyLayou
 For the damage meter, this resets the position of the `DamageMeter` parent frame. If your addon
 has saved a custom position for `DamageMeterSessionWindow1`, Edit Mode will overwrite it.
 
-The correct pattern to survive this (used in `DamageMeterDrag.lua`):
+The correct pattern to survive this:
 
 ```lua
+-- WRONG — do not use C_Timer.After inside a hooksecurefunc.
+-- C_Timer.After closures created inside a hooksecurefunc callback inherit the taint
+-- of whatever triggered the hook (e.g. another addon calling ApplyLayoutToFrame via
+-- C_EditMode.SetActiveLayout). The deferred callback carries that taint and spreads
+-- it when it later calls SetPoint/ClearAllPoints on the frame, tainting properties
+-- that Blizzard's layout system reads — causing "secret number/string value" errors.
+
+-- CORRECT — flag + OnUpdate poller:
+local pendingReapply = false
+
 hooksecurefunc(EditModeManagerFrame, "ApplyLayoutToFrame", function(_, systemFrame)
     if systemFrame == DamageMeter then
-        -- Re-apply your saved position one tick later
-        C_Timer.After(0, function()
-            ReapplyPosition(frame, db)
-        end)
+        pendingReapply = true   -- plain boolean write; does NOT spread taint
     end
+end)
+
+local reapplyPoller = CreateFrame("Frame")
+reapplyPoller:SetScript("OnUpdate", function()
+    if not pendingReapply then return end
+    pendingReapply = false
+    ReapplyPosition(frame, db)  -- safe: C++ game loop origin, clean context
 end)
 ```
 
