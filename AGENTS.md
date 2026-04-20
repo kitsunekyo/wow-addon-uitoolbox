@@ -44,6 +44,7 @@ EnhancedInterface/
 
 > **All development MUST be done inside the WSL2 Arch Linux workspace.**
 > **NEVER directly edit or write files anywhere under `/mnt/c/...` on the Windows host.**
+> **NEVER read, search, or browse files under `/mnt/c/...` for any reason. All source code investigation must stay within this workspace.**
 
 The canonical source of truth is the WSL2 workspace:
 ```

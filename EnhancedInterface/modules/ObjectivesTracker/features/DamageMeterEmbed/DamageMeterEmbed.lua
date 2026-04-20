@@ -43,6 +43,24 @@ local METER_SIDE_BLEED = 20
 local DAMAGE_TYPE_HEADER_FONT_DELTA = 1
 
 -- ---------------------------------------------------------------------------
+-- Pending-update flags (taint / combat-lockdown safety)
+-- ---------------------------------------------------------------------------
+-- Declared early so they are visible to the Mixin methods defined below,
+-- which reference them before the flags' original declaration site further
+-- down the file.
+
+-- Set by OnEvent, TryRegister, and RequestUpdateAll(); consumed by OnUpdate.
+-- Deferred so the combat-lockdown guard in the OnUpdate poller can defer
+-- ObjectiveTrackerManager:UpdateAll() until lockdown has lifted.
+local pendingUpdateAll = false
+
+-- Set by the Edit Mode hook; consumed by the OnUpdate poller.
+local pendingReembed = false
+
+-- Set by LayoutContents; consumed by the OnUpdate poller.
+local pendingEmbed = false
+
+-- ---------------------------------------------------------------------------
 -- Mixin
 -- ---------------------------------------------------------------------------
 
@@ -61,7 +79,17 @@ function EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin:InitModule()
 end
 
 function EnhancedInterfaceObjectivesTrackerDamageMeterModuleMixin:OnEvent(event, ...)
-    self:MarkDirty()
+    -- COMBAT LOCKDOWN / TAINT HAZARD: MarkDirty() ultimately drives
+    -- ObjectiveTrackerManager:UpdateAll() → QuestSuperTracking:CacheCurrentSuperTrackInfo()
+    -- → QuestDataProvider:RefreshAllData() → MapCanvas:AcquirePin() →
+    -- Button:SetPassThroughButtons() — a protected function that is blocked during
+    -- combat lockdown.  Events like DAMAGE_METER_COMBAT_SESSION_UPDATED fire while
+    -- (or just after) combat is active, so calling MarkDirty() directly here
+    -- causes ADDON_ACTION_BLOCKED errors on world-quest / combat completion.
+    --
+    -- FIX: use the pendingUpdateAll flag instead.  The OnUpdate poller guards with
+    -- InCombatLockdown() and defers until lockdown has lifted.
+    pendingUpdateAll = true
 end
 
 -- Returns true when the embed feature is enabled and the damage meter addon loaded.
@@ -328,40 +356,29 @@ end)
 -- (not the tainted hook call chain), polls the flag and performs the actual
 -- re-embed outside of the tainted context.
 
--- Flag set by TryRegister() and RequestUpdateAll(); consumed by the OnUpdate
--- poller below.
+-- Flag set by TryRegister(), OnEvent(), and RequestUpdateAll(); consumed by the
+-- OnUpdate poller below.
 -- TryRegister() is called from hooksecurefunc(ObjectiveTrackerManager, "Init", ...)
 -- and from a PLAYER_ENTERING_WORLD handler.  Both paths can execute in a tainted
 -- context (another addon's Init chain, or a tainted PLAYER_ENTERING_WORLD firing).
 -- RequestUpdateAll() is called from the EditModeIntegration set callback, which
 -- runs in a plain addon SetScript("OnClick") context — fully tainted.
+-- OnEvent() handles DAMAGE_METER_COMBAT_SESSION_UPDATED and similar events that
+-- fire during or just after combat; MarkDirty() from those contexts cascades into
+-- Button:SetPassThroughButtons() [BLOCKED in combat lockdown].
 -- Any C_Timer.After closure created in those contexts would bake in that taint
 -- and propagate it into ObjectiveTrackerManager:UpdateAll(), which touches frame
 -- positions and can taint the WorldMap open path (FlightPointDataProvider →
 -- MapCanvas → pin UpdateMousePropagation → SetPropagateMouseClicks [BLOCKED]).
 -- Using a plain boolean flag here (no closure) and consuming it from the OnUpdate
 -- poller (C++ game loop origin, clean context) breaks that taint chain.
-local pendingUpdateAll = false
+-- (Declared near the top of the file so Mixin:OnEvent can reference it.)
 
 -- Public accessor for other modules (e.g. EditModeIntegration) to schedule an
 -- UpdateAll without calling it directly from a tainted execution context.
 function EnhancedInterfaceObjectivesTrackerDamageMeterModule.RequestUpdateAll()
     pendingUpdateAll = true
 end
-
--- Flag set by the Edit Mode hook; consumed by the OnUpdate poller below.
-local pendingReembed = false
-
--- Flag set by LayoutContents; consumed by the OnUpdate poller below.
--- LayoutContents is called by Blizzard's ObjectiveTracker layout system, which
--- can fire during call chains tainted by other addons (e.g. CraftSim tainting
--- a scroll/menu close path).  Any C_Timer.After closure created inside that
--- tainted context inherits and propagates the taint — causing "secret number
--- value" errors in downstream Blizzard code (e.g. MathUtil.lua Clamp via
--- ScrollBox).  Using a plain boolean flag here (no closure created) and
--- consuming it from the OnUpdate poller (C++ game loop origin, clean context)
--- breaks that taint chain entirely.
-local pendingEmbed = false
 
 local function TryHookMethod(object, methodName, hookFunc)
     if object and type(object[methodName]) == "function" then

@@ -36,9 +36,18 @@
 -- ── Taint notes ───────────────────────────────────────────────────────────────
 --
 --   We never touch secure frames or write to protected fields.  The companion
---   dialog is a plain non-secure frame.  hooksecurefunc on a frame instance
---   (not a global function) is safe — it runs in the addon's own execution
---   context, not tainted.
+--   dialog is a plain non-secure frame.  However, hooksecurefunc callbacks
+--   inherit the taint of whatever called the original function.  When another
+--   addon (e.g. AccWideUILayoutSelection) calls C_EditMode.SetActiveLayout(),
+--   that call chain is tainted, and our UpdateSizeAndAnchors hook fires inside
+--   that tainted context.  Any frame mutation (SetWidth, SetPoint, Show, etc.)
+--   performed directly inside the hook would propagate taint — causing
+--   "attempt to perform string conversion on a secret string value" errors in
+--   the chat-frame history token code (ChatHistory_GetToken).
+--
+--   FIX: Only set a boolean flag inside the hook.  A separate OnUpdate poller,
+--   driven by the C++ game loop (untainted origin), reads the flag and performs
+--   all frame mutations in a clean execution context.
 
 -- Padding / sizing constants — matched to EditModeSystemSettingsDialog
 -- Width is NOT hardcoded: we read EditModeSystemSettingsDialog:GetWidth() at
@@ -72,6 +81,11 @@ end
 -- dialog, not to the Blizzard one).
 
 local rowFrames = {}   -- persistent array of row frame objects
+
+-- ── Pending-update flag (taint safety) ────────────────────────────────────────
+-- Set by the hooksecurefunc callback (which may run in a tainted context).
+-- Consumed by the OnUpdate poller (C++ game loop origin — untainted).
+local pendingSystemFrame = nil   -- the systemFrame arg passed to the hook
 
 local function GetOrCreateRowFrame(index, parent)
     if rowFrames[index] then return rowFrames[index] end
@@ -227,9 +241,14 @@ local function RegisterHook()
     -- UpdateSettings.  By the time UpdateSizeAndAnchors fires, self:Layout() has
     -- already run on the outer dialog, so self:GetWidth() returns the true final
     -- width we need to match.
+    --
+    -- TAINT HAZARD: This hook fires inside the call chain of any addon that calls
+    -- C_EditMode.SetActiveLayout() (e.g. AccWideUILayoutSelection).  That chain is
+    -- tainted, so we must NOT call any frame-mutating API here.  Only set a flag;
+    -- the OnUpdate poller below consumes it from a clean C++ game-loop context.
     hooksecurefunc(EditModeSystemSettingsDialog, "UpdateSizeAndAnchors", function(self, systemFrame)
         if systemFrame ~= self.attachedToSystem then return end
-        UpdateCompanionDialog(systemFrame)
+        pendingSystemFrame = systemFrame
     end)
 
     -- Hide when Edit Mode is closed.
@@ -243,4 +262,15 @@ _initFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 _initFrame:SetScript("OnEvent", function(self)
     self:UnregisterEvent("PLAYER_ENTERING_WORLD")
     EventUtil.ContinueOnAddOnLoaded("Blizzard_EditMode", RegisterHook)
+end)
+
+-- OnUpdate poller: consume pendingSystemFrame set by the hooksecurefunc hook.
+-- Fires from the C++ game loop — a clean, untainted execution context — so all
+-- frame mutations performed here are safe from taint propagation.
+_initFrame:SetScript("OnUpdate", function()
+    if pendingSystemFrame then
+        local sf = pendingSystemFrame
+        pendingSystemFrame = nil
+        UpdateCompanionDialog(sf)
+    end
 end)
