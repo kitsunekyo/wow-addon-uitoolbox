@@ -1,3 +1,11 @@
+## [0.2.2] - 2026-04-27
+
+### Fixes
+- reduce taint vectors in power and companion UI updates
+- defer frame mutations and UpdateAll to OnUpdate poller to prevent taint and combat lockdown errors
+- guard taint-unsafe frame mutations and ObjectiveTracker:UpdateAll in combat
+
+
 ## [0.2.1] - 2026-04-18
 
 ### Fixes
