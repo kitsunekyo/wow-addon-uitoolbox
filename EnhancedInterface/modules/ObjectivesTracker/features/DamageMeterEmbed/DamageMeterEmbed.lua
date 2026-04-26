@@ -40,7 +40,32 @@ local cachedMeterHeight = nil
 local METER_SIDE_BLEED = 20
 
 -- Slightly reduce the "Damage Done" header text size in the embedded view.
-local DAMAGE_TYPE_HEADER_FONT_DELTA = 1
+-- We swap the FontString to a smaller Blizzard-defined font OBJECT rather than
+-- calling SetFont with a path/size triple.
+--
+-- TAINT MODEL — why we cannot call SetFont here:
+-- ApplyEmbeddedHeaderFont runs from EmbedSessionWindow, which is invoked from
+-- our own OnUpdate poller.  Although the comment block on the OnUpdate handler
+-- claims the C++ game loop provides "a fresh execution context not derived
+-- from any tainted call chain", that is only true for OnUpdate handlers
+-- registered by Blizzard itself.  When an addon registers an OnUpdate via
+-- SetScript, the engine still stamps the addon's taint on the call stack.
+--
+-- SetFont(path, size, flags) writes into the global font-metrics cache shared
+-- by every FontString in the UI — including Blizzard's UIWidget text frames.
+-- Once the cache is tainted by us, any later GetStringHeight/GetStringWidth/
+-- GetLeft/GetBottom returns a "secret number", which Blizzard's tooltip and
+-- widget layout code feeds into arithmetic and crashes:
+--   • UIWidgetTemplateBase:Setup -> arithmetic on secret number
+--   • UIWidgetTemplateTextWithState:Setup -> textHeight (secret)
+--   • FrameUtil.GetUnscaledFrameRect -> frameLeft (secret)
+--   • SharedTooltipTemplates.GameTooltip_InsertFrame -> arithmetic
+--   • ADDON_ACTION_BLOCKED PerformEmote() (WorldMap show path)
+--
+-- SetFontObject with a Blizzard-defined font object does NOT write to the
+-- metrics cache; it just swaps the FontString's font-object pointer to one
+-- whose metrics are already in the (clean) cache from FrameXML load time.
+local DAMAGE_TYPE_HEADER_FONT_OBJECT_NAME = "GameFontNormalSmall"
 
 -- ---------------------------------------------------------------------------
 -- Pending-update flags (taint / combat-lockdown safety)
@@ -108,31 +133,32 @@ local function ApplyEmbeddedHeaderFont(sessionWindow)
     if not sessionWindow.GetDamageMeterTypeName then return end
 
     local typeName = sessionWindow:GetDamageMeterTypeName()
-    if not typeName or not typeName.GetFont then return end
+    if not typeName or not typeName.SetFontObject then return end
 
-    if not sessionWindow._uitoolbox_origTypeNameFont then
-        local fontPath, fontSize, fontFlags = typeName:GetFont()
-        if not (fontPath and fontSize) then return end
-
-        sessionWindow._uitoolbox_origTypeNameFont = {
-            path = fontPath,
-            size = fontSize,
-            flags = fontFlags,
-        }
+    -- Capture the original font object exactly once so we can restore it on
+    -- detach.  GetFontObject is a pointer read (no metrics-cache touch) and
+    -- is safe to call from a tainted context.
+    if not sessionWindow._uitoolbox_origTypeNameFontObject then
+        local origObject = typeName:GetFontObject()
+        if origObject then
+            sessionWindow._uitoolbox_origTypeNameFontObject = origObject
+        end
     end
 
-    local orig = sessionWindow._uitoolbox_origTypeNameFont
-    local targetSize = math.max(8, orig.size - DAMAGE_TYPE_HEADER_FONT_DELTA)
-    typeName:SetFont(orig.path, targetSize, orig.flags)
+    local target = _G[DAMAGE_TYPE_HEADER_FONT_OBJECT_NAME]
+    if target then
+        typeName:SetFontObject(target)
+    end
 end
 
 local function RestoreHeaderFont(sessionWindow)
-    local orig = sessionWindow._uitoolbox_origTypeNameFont
-    if not orig or not sessionWindow.GetDamageMeterTypeName then return end
+    if not sessionWindow.GetDamageMeterTypeName then return end
+    local origObject = sessionWindow._uitoolbox_origTypeNameFontObject
+    if not origObject then return end
 
     local typeName = sessionWindow:GetDamageMeterTypeName()
-    if typeName and typeName.SetFont then
-        typeName:SetFont(orig.path, orig.size, orig.flags)
+    if typeName and typeName.SetFontObject then
+        typeName:SetFontObject(origObject)
     end
 end
 

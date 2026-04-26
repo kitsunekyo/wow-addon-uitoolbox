@@ -2,18 +2,24 @@
 -- shared/EditModeCompanionDialog/EditModeCompanionDialog.lua
 --
 -- Provides a persistent companion dialog that appears below the Blizzard
--- EditModeSystemSettingsDialog whenever any registered EnhancedInterface module has
--- settings to show for the currently selected Edit Mode system frame.
+-- EditModeSystemSettingsDialog whenever any registered EnhancedInterface
+-- module has settings to show for the currently selected Edit Mode system
+-- frame.
 --
 -- ── Design ────────────────────────────────────────────────────────────────────
 --
---   • One persistent Frame (DIALOG strata) created lazily on first use.
---     Never destroyed.  Styled with a child Border frame that inherits
---     DialogBorderTranslucentTemplate — the exact same template used by
---     EditModeSystemSettingsDialog (DiamondMetal nine-slice border +
---     solid black translucent Bg, no BackdropTemplate needed).
+--   • One persistent Frame (DIALOG strata) created EAGERLY at PLAYER_LOGIN /
+--     Blizzard_EditMode-loaded time (a clean, Blizzard-driven dispatch
+--     context).  Never destroyed.  Styled with a child Border frame that
+--     inherits DialogBorderTranslucentTemplate — the exact same template used
+--     by EditModeSystemSettingsDialog.
+--   • A pool of MAX_ROWS persistent checkbox row frames is created EAGERLY
+--     alongside the dialog.  Each row owns a FontString label and a
+--     CheckButton.  Rows are created up-front so no CreateFrame /
+--     CreateFontString call ever happens from our OnUpdate-driven update
+--     path (which is tainted — see TAINT MODEL below).
 --   • Modules register "providers" via EnhancedInterface.EditModeCompanion.Register().
---     A provider is a table:
+--     A provider is:
 --       {
 --           filter(systemFrame) → bool   -- return true if this provider has
 --                                        -- content for the selected frame
@@ -27,37 +33,61 @@
 --           get     = function() → bool,
 --           set     = function(value),
 --       }
---   • On every EditModeSystemSettingsDialog:UpdateSettings(systemFrame) call the
---     companion dialog collects all rows from matching providers, builds/reuses
---     persistent row frames, shows only the needed ones, resizes itself, and
---     re-anchors to the bottom of the Blizzard dialog.
---   • Hides when Edit Mode is closed (PLAYER_INTERACTION_MANAGER_FRAME_HIDE).
+--   • On every EditModeSystemSettingsDialog:UpdateSettings(systemFrame) call
+--     UpdateCompanionDialog collects all rows from matching providers, does
+--     property-only updates (SetText/SetChecked/SetPoint/Show/Hide) on the
+--     pre-built frames, and re-anchors below the Blizzard dialog.
+--   • Hides when Edit Mode is closed.
 --
--- ── Taint notes ───────────────────────────────────────────────────────────────
+-- ── TAINT MODEL ───────────────────────────────────────────────────────────────
 --
---   We never touch secure frames or write to protected fields.  The companion
---   dialog is a plain non-secure frame.  However, hooksecurefunc callbacks
---   inherit the taint of whatever called the original function.  When another
---   addon (e.g. AccWideUILayoutSelection) calls C_EditMode.SetActiveLayout(),
---   that call chain is tainted, and our UpdateSizeAndAnchors hook fires inside
---   that tainted context.  Any frame mutation (SetWidth, SetPoint, Show, etc.)
---   performed directly inside the hook would propagate taint — causing
---   "attempt to perform string conversion on a secret string value" errors in
---   the chat-frame history token code (ChatHistory_GetToken).
+-- Two distinct taint hazards in this file:
 --
---   FIX: Only set a boolean flag inside the hook.  A separate OnUpdate poller,
---   driven by the C++ game loop (untainted origin), reads the flag and performs
---   all frame mutations in a clean execution context.
+-- (1) hooksecurefunc callbacks inherit the taint of whatever called the
+--     original function.  When another addon (e.g. AccWideUILayoutSelection)
+--     calls C_EditMode.SetActiveLayout(), our UpdateSizeAndAnchors hook fires
+--     inside that tainted chain.  Any frame mutation performed directly inside
+--     the hook would propagate taint.  FIX: only set a boolean flag inside the
+--     hook; the OnUpdate poller below consumes it.
+--
+-- (2) Addon-registered OnUpdate handlers carry THIS addon's taint stamp on
+--     the call stack.  They are NOT a clean execution context.  This means
+--     anything we do inside our own OnUpdate handler is tainted.
+--
+--     Critically:
+--       • CreateFrame / CreateFontString called from a tainted context taints
+--         the new object permanently.
+--       • SetText / SetFont / SetFontObject on a tainted FontString (or any
+--         FontString in a tainted call) writes into the GLOBAL FONT METRICS
+--         CACHE — shared with every Blizzard FontString, including the
+--         widgets inside Area POI tooltips.  Once the cache is tainted, any
+--         later GetStringHeight() / GetStringWidth() / GetLeft() / GetBottom()
+--         on any FontString returns a "secret number" and Blizzard's widget
+--         arithmetic crashes with errors like:
+--           - UIWidgetTemplateTextWithState:Setup -> textHeight (secret)
+--           - UIWidgetTemplateBase:Setup        -> arithmetic on secret
+--           - FrameUtil.GetUnscaledFrameRect    -> frameLeft (secret)
+--           - SharedTooltipTemplates            -> arithmetic on secret
+--           - ADDON_ACTION_BLOCKED PerformEmote (WorldMap show path)
+--
+--     FIX: Build all frames and FontStrings EAGERLY in EventUtil.ContinueOnAddOnLoaded
+--     ("Blizzard_EditMode", BuildDialog) — a Blizzard-driven dispatch from a
+--     clean context.  The OnUpdate-driven UpdateCompanionDialog must NEVER
+--     create frames or FontStrings; it only updates properties on the pre-built
+--     pool.  Property updates (SetText/SetChecked/SetPoint/Show/Hide) on
+--     already-clean FontStrings do NOT taint the metrics cache because no
+--     metrics measurement happens — Blizzard reuses the cached entry from the
+--     clean creation context.
 
 -- Padding / sizing constants — matched to EditModeSystemSettingsDialog
--- Width is NOT hardcoded: we read EditModeSystemSettingsDialog:GetWidth() at
--- runtime so our dialog always matches its actual (auto-resized) width.
-local DIALOG_PADDING_H    = 20    -- widthPadding=40 split evenly → 20px each side
-local DIALOG_PADDING_TOP  = 42    -- title at y=-15 (~14px tall) + 12px gap below it
-local DIALOG_PADDING_BOT  = 20    -- heightPadding=40 split evenly → 20px bottom
-local ROW_HEIGHT          = 32    -- fixedHeight of EditModeSettingCheckboxTemplate
-local ROW_SPACING         = 2     -- spacing on the Settings VerticalLayoutFrame
-local TITLE_OFFSET_Y      = -15   -- same as EditModeSystemSettingsDialog Title anchor
+local DIALOG_PADDING_H     = 20    -- widthPadding=40 split evenly → 20px each side
+local DIALOG_PADDING_TOP   = 42    -- title at y=-15 (~14px tall) + 12px gap below it
+local DIALOG_PADDING_BOT   = 20    -- heightPadding=40 split evenly → 20px bottom
+local ROW_HEIGHT           = 32    -- fixedHeight of EditModeSettingCheckboxTemplate
+local ROW_SPACING          = 2     -- spacing on the Settings VerticalLayoutFrame
+local TITLE_OFFSET_Y       = -15   -- same as EditModeSystemSettingsDialog Title anchor
+local DEFAULT_DIALOG_WIDTH = 350   -- fallback used until OnSizeChanged fires once
+local MAX_ROWS             = 16    -- pre-built row pool size (plenty of head-room)
 
 -- ── Module namespace ──────────────────────────────────────────────────────────
 
@@ -74,29 +104,27 @@ function Companion.Register(provider)
     table.insert(providers, provider)
 end
 
--- ── Row frame pool ────────────────────────────────────────────────────────────
--- We maintain a flat array of persistent checkbox row frames.  They are created
--- once and reused across updates — never pool-managed so they survive
--- ReleaseAllNonSliders on the Blizzard dialog (they are parented to our own
--- dialog, not to the Blizzard one).
+-- ── State ─────────────────────────────────────────────────────────────────────
 
-local rowFrames = {}   -- persistent array of row frame objects
+local dialog                 = nil   -- the persistent Frame (built eagerly)
+local rowFrames              = {}    -- pool of MAX_ROWS row frames
+local pendingSystemFrame     = nil   -- flag set by hook, consumed by OnUpdate
+local cachedBlizzDialogWidth = nil   -- captured by OnSizeChanged (untainted)
 
--- ── Pending-update flag (taint safety) ────────────────────────────────────────
--- Set by the hooksecurefunc callback (which may run in a tainted context).
--- Consumed by the OnUpdate poller (C++ game loop origin — untainted).
-local pendingSystemFrame = nil   -- the systemFrame arg passed to the hook
+-- ── Eager construction (clean Blizzard-driven context) ───────────────────────
+-- Called exactly once from EventUtil.ContinueOnAddOnLoaded("Blizzard_EditMode")
+-- which the C++ engine dispatches in a clean context (no addon taint on the
+-- stack).  This is the ONLY place CreateFrame / CreateFontString is called
+-- in this file.
 
-local function GetOrCreateRowFrame(index, parent)
-    if rowFrames[index] then return rowFrames[index] end
-
+local function BuildRowFrame(index, parent)
     local f = CreateFrame("Frame", nil, parent)
     f:SetHeight(ROW_HEIGHT)
-    f:SetPoint("TOPLEFT")   -- positioned manually in UpdateRows
+    f:SetPoint("TOPLEFT")   -- positioned per-update in UpdateCompanionDialog
 
     local cb = CreateFrame("CheckButton", nil, f)
     cb:SetSize(32, 32)
-    cb:SetPoint("LEFT", f, "LEFT", -5, 0)   -- matches EditModeSettingCheckboxTemplate
+    cb:SetPoint("LEFT", f, "LEFT", -5, 0)
     cb:SetNormalTexture("Interface\\Buttons\\UI-CheckBox-Up")
     cb:SetPushedTexture("Interface\\Buttons\\UI-CheckBox-Down")
     cb:SetHighlightTexture("Interface\\Buttons\\UI-CheckBox-Highlight", "ADD")
@@ -106,7 +134,7 @@ local function GetOrCreateRowFrame(index, parent)
 
     local lbl = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightMedium")
     lbl:SetHeight(ROW_HEIGHT)
-    lbl:SetPoint("LEFT", cb, "RIGHT", 5, 0)   -- matches EditModeSettingCheckboxTemplate label offset
+    lbl:SetPoint("LEFT", cb, "RIGHT", 5, 0)
     lbl:SetPoint("RIGHT", f, "RIGHT", 0, 0)
     lbl:SetJustifyH("LEFT")
     f.Label = lbl
@@ -132,25 +160,22 @@ local function GetOrCreateRowFrame(index, parent)
     end)
 
     f:Hide()
-    rowFrames[index] = f
     return f
 end
 
--- ── Dialog frame ──────────────────────────────────────────────────────────────
-
-local dialog = nil
-
-local function GetOrCreateDialog()
-    if dialog then return dialog end
+local function BuildDialog()
+    if dialog then return end
 
     -- Plain frame — styling comes from the Border child, not BackdropTemplate.
     local d = CreateFrame("Frame", "EnhancedInterfaceEditModeCompanionDialog", UIParent)
     d:SetFrameStrata("DIALOG")
     d:SetFrameLevel(200)   -- same level as EditModeSystemSettingsDialog
+    d:SetWidth(DEFAULT_DIALOG_WIDTH)
+    d:SetHeight(DIALOG_PADDING_TOP + DIALOG_PADDING_BOT)
     d:Hide()
 
-    -- Border: use the same template as EditModeSystemSettingsDialog so our
-    -- panel matches the game's look exactly (DiamondMetal nine-slice + solid
+    -- Border: same template as EditModeSystemSettingsDialog so the panel
+    -- matches the game's look exactly (DiamondMetal nine-slice + solid
     -- black translucent Bg).
     local border = CreateFrame("Frame", nil, d, "DialogBorderTranslucentTemplate")
     border:SetAllPoints(d)
@@ -171,17 +196,25 @@ local function GetOrCreateDialog()
     d.Divider = divider
 
     dialog = d
-    return d
+
+    -- Pre-build the entire row pool eagerly so nothing is created lazily
+    -- from the tainted OnUpdate path.
+    for i = 1, MAX_ROWS do
+        rowFrames[i] = BuildRowFrame(i, d)
+    end
 end
 
--- ── Update logic ──────────────────────────────────────────────────────────────
+-- ── Update logic (runs from tainted OnUpdate context) ────────────────────────
+-- This function MUST NOT call CreateFrame, CreateFontString, SetFont, or
+-- SetFontObject.  Property updates only.
 
 local function UpdateCompanionDialog(systemFrame)
+    if not dialog then return end   -- BuildDialog hasn't run yet
+
     -- Collect rows from all matching providers.
     local activeRows = {}
     for _, provider in ipairs(providers) do
         if provider.filter(systemFrame) then
-            -- Support both a static `rows` array and a dynamic `getRows(systemFrame)` function.
             local rows = provider.getRows and provider.getRows(systemFrame) or provider.rows
             if rows then
                 for _, rowDef in ipairs(rows) do
@@ -192,60 +225,79 @@ local function UpdateCompanionDialog(systemFrame)
     end
 
     if #activeRows == 0 then
-        if dialog then dialog:Hide() end
+        dialog:Hide()
         return
     end
 
-    local d = GetOrCreateDialog()
-
-    -- Match the Blizzard dialog's current width exactly (it auto-resizes per system frame).
-    local blizzWidth = EditModeSystemSettingsDialog:GetWidth()
-    d:SetWidth(blizzWidth)
+    -- Width: use captured value from OnSizeChanged hook (untainted engine
+    -- argument) or the default fallback.
+    local blizzWidth = cachedBlizzDialogWidth or DEFAULT_DIALOG_WIDTH
+    dialog:SetWidth(blizzWidth)
     local rowWidth = blizzWidth - DIALOG_PADDING_H * 2
 
-    -- Position rows inside the dialog.
-    local contentTop = -(DIALOG_PADDING_TOP)  -- y offset from dialog top
-    for i, rowDef in ipairs(activeRows) do
-        local rf = GetOrCreateRowFrame(i, d)
+    -- Position rows.  Cap at MAX_ROWS so we never index beyond the pool.
+    local activeCount = math.min(#activeRows, MAX_ROWS)
+    local contentTop  = -(DIALOG_PADDING_TOP)
+    for i = 1, activeCount do
+        local rowDef = activeRows[i]
+        local rf = rowFrames[i]
         rf:SetWidth(rowWidth)
         rf.rowDef = rowDef
         rf.Label:SetText(rowDef.label)
         rf.Button:SetChecked(rowDef.get())
         rf:ClearAllPoints()
-        rf:SetPoint("TOPLEFT", d, "TOPLEFT",
+        rf:SetPoint("TOPLEFT", dialog, "TOPLEFT",
             DIALOG_PADDING_H,
             contentTop - (i - 1) * (ROW_HEIGHT + ROW_SPACING))
         rf:Show()
     end
 
-    -- Hide unused row frames.
-    for i = #activeRows + 1, #rowFrames do
+    -- Hide unused rows in the pool.
+    for i = activeCount + 1, MAX_ROWS do
         rowFrames[i]:Hide()
     end
 
-    -- Resize dialog to fit rows.
-    local contentHeight = #activeRows * (ROW_HEIGHT + ROW_SPACING) - ROW_SPACING
-    d:SetHeight(DIALOG_PADDING_TOP + contentHeight + DIALOG_PADDING_BOT)
+    -- Resize dialog to fit the visible rows.
+    local contentHeight = activeCount * (ROW_HEIGHT + ROW_SPACING) - ROW_SPACING
+    dialog:SetHeight(DIALOG_PADDING_TOP + contentHeight + DIALOG_PADDING_BOT)
 
     -- Re-anchor below the Blizzard dialog.
-    d:ClearAllPoints()
-    d:SetPoint("TOP", EditModeSystemSettingsDialog, "BOTTOM", 0, -4)
+    dialog:ClearAllPoints()
+    dialog:SetPoint("TOP", EditModeSystemSettingsDialog, "BOTTOM", 0, -4)
 
-    d:Show()
+    dialog:Show()
 end
 
 -- ── Hook registration ─────────────────────────────────────────────────────────
 
 local function RegisterHook()
-    -- Hook UpdateSizeAndAnchors (the final step of UpdateDialog) rather than
-    -- UpdateSettings.  By the time UpdateSizeAndAnchors fires, self:Layout() has
-    -- already run on the outer dialog, so self:GetWidth() returns the true final
-    -- width we need to match.
+    -- Build the entire dialog (and its row pool) right now.  This callback
+    -- is dispatched by the C++ engine through EventUtil.ContinueOnAddOnLoaded
+    -- in a clean context, so all CreateFrame / CreateFontString calls inside
+    -- BuildDialog are untainted.  This is the ONLY place we ever create the
+    -- frames in this file.
+    BuildDialog()
+
+    -- Capture the Blizzard dialog's width via its OnSizeChanged script.  The
+    -- C++ engine passes the new width and height as arguments — these are
+    -- untainted regardless of what caller's chain triggered the resize.
+    -- Replaces a former GetWidth() call from the OnUpdate poller, which would
+    -- have returned a tainted "secret number".
+    EditModeSystemSettingsDialog:HookScript("OnSizeChanged", function(_, w, _h)
+        if w and w > 0 then
+            cachedBlizzDialogWidth = w
+        end
+    end)
+
+    -- Hook UpdateSizeAndAnchors (the final step of UpdateDialog).  By the
+    -- time it fires, Layout() has already run on the outer dialog, so the
+    -- OnSizeChanged hook above will have updated cachedBlizzDialogWidth to
+    -- the final width before our OnUpdate poller consumes pendingSystemFrame.
     --
-    -- TAINT HAZARD: This hook fires inside the call chain of any addon that calls
-    -- C_EditMode.SetActiveLayout() (e.g. AccWideUILayoutSelection).  That chain is
-    -- tainted, so we must NOT call any frame-mutating API here.  Only set a flag;
-    -- the OnUpdate poller below consumes it from a clean C++ game-loop context.
+    -- TAINT HAZARD: This hook fires inside the call chain of any addon that
+    -- calls C_EditMode.SetActiveLayout() (e.g. AccWideUILayoutSelection).
+    -- That chain is tainted, so we must NOT call any frame-mutating API here.
+    -- Only set a flag; the OnUpdate poller below consumes it.
     hooksecurefunc(EditModeSystemSettingsDialog, "UpdateSizeAndAnchors", function(self, systemFrame)
         if systemFrame ~= self.attachedToSystem then return end
         pendingSystemFrame = systemFrame
@@ -265,8 +317,11 @@ _initFrame:SetScript("OnEvent", function(self)
 end)
 
 -- OnUpdate poller: consume pendingSystemFrame set by the hooksecurefunc hook.
--- Fires from the C++ game loop — a clean, untainted execution context — so all
--- frame mutations performed here are safe from taint propagation.
+-- This handler runs in a tainted context (addon-registered OnUpdate carries
+-- our addon's taint stamp on the call stack), but UpdateCompanionDialog only
+-- does property updates on already-built frames — no CreateFrame, no
+-- CreateFontString, no SetFont — so no taint can propagate into the global
+-- font-metrics cache.
 _initFrame:SetScript("OnUpdate", function()
     if pendingSystemFrame then
         local sf = pendingSystemFrame

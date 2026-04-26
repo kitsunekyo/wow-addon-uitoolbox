@@ -210,6 +210,60 @@ local function PickupFlyoutByID(flyoutID)
     return false
 end
 
+-- Returns true if the live contents of `slot` already match the saved `record`.
+-- Used by RestoreBar to skip pickup/place churn on slots that don't need to
+-- change.  Avoiding spurious writes to Action Bar 1 in particular prevents
+-- side effects on Blizzard's MainMenuBarArtFrame (gryphon art) which can
+-- otherwise re-show despite the "Hide Bar Art" Edit Mode setting.
+--
+-- Both arguments may be nil-ish:
+--   record == nil  → caller treats slot as "should be empty"
+--   live  == nil   → slot is currently empty
+local function SlotMatchesRecord(slot, record)
+    local liveType, liveID, liveSubType = GetActionInfo(slot)
+
+    -- Both empty → match.
+    if not record then
+        return liveType == nil
+    end
+
+    -- Record present but slot empty → mismatch.
+    if not liveType then
+        return false
+    end
+
+    -- Type must match for everything below.
+    if liveType ~= record.type then
+        return false
+    end
+
+    if record.type == "spell"
+    or record.type == "item"
+    or record.type == "equipmentset"
+    or record.type == "flyout" then
+        return liveID == record.id
+
+    elseif record.type == "companion" then
+        return liveID == record.id and liveSubType == record.subType
+
+    elseif record.type == "macro" then
+        -- record.id stores the macro name; live id is the macro index.
+        local liveName = GetMacroInfo(liveID)
+        return liveName == record.id
+
+    elseif record.type == "summonmount" then
+        -- record.id == 0 means "Summon Random Favorite Mount" (opaque action id).
+        if record.id == 0 then
+            return liveID == RANDOM_FAVORITE_MOUNT_ACTION_ID
+        end
+        -- Otherwise compare the stable mount summon spellID.
+        local liveSpellID = C_ActionBar.GetSpell(slot)
+        return liveSpellID == record.id
+    end
+
+    return false
+end
+
 -- Pickup the correct cursor item for a saved slot record.
 -- Returns true if a pickup was attempted (cursor state determines success).
 local function PickupSavedAction(record)
@@ -310,6 +364,14 @@ end
 
 -- Restore all 12 slots of a bar from the DB snapshot.
 -- Must NOT be called while InCombatLockdown() is true.
+--
+-- Diff-before-restore: each slot is compared against the snapshot via
+-- SlotMatchesRecord and skipped entirely when already in sync.  This avoids
+-- spurious PickupAction/PlaceAction churn — most loadout switches leave the
+-- shared bar untouched, so restore becomes a near-no-op.  Reducing writes to
+-- Action Bar 1 in particular prevents collateral damage to Blizzard's
+-- MainMenuBarArtFrame state (the "Hide Bar Art" Edit Mode setting can
+-- otherwise be silently undone by rapid bar mutations during loadout swaps).
 function SharedBars:RestoreBar(barIndex)
     local firstSlot = GetFirstSlot(barIndex)
     if not firstSlot then return end
@@ -322,18 +384,22 @@ function SharedBars:RestoreBar(barIndex)
         local slot   = firstSlot + (i - 1)
         local record = entry.slots[i]
 
-        -- Clear the slot first regardless (removes actions not in snapshot).
-        ClearCursor()
-        PickupAction(slot)   -- picks up whatever is there (or is a no-op if empty)
-        ClearCursor()        -- drop it to effectively clear the slot
-
-        if record then
+        -- Skip slots that already match the snapshot — no pickup, no place,
+        -- no clear.  This is the common case on loadout switches.
+        if not SlotMatchesRecord(slot, record) then
+            -- Clear the slot first regardless (removes actions not in snapshot).
             ClearCursor()
-            if PickupSavedAction(record) then
-                local cursorType = GetCursorInfo()
-                if cursorType then
-                    PlaceAction(slot)
-                    ClearCursor()
+            PickupAction(slot)   -- picks up whatever is there (or is a no-op if empty)
+            ClearCursor()        -- drop it to effectively clear the slot
+
+            if record then
+                ClearCursor()
+                if PickupSavedAction(record) then
+                    local cursorType = GetCursorInfo()
+                    if cursorType then
+                        PlaceAction(slot)
+                        ClearCursor()
+                    end
                 end
             end
         end
