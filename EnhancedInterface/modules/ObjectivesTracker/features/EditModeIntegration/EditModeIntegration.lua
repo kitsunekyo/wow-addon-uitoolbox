@@ -1,14 +1,5 @@
--- EnhancedInterface
--- modules/ObjectivesTracker/features/EditModeIntegration/EditModeIntegration.lua
---
--- Registers Damage Meter settings with the shared EditModeCompanionDialog so they
--- appear in the "EnhancedInterface" companion panel when the player selects the
--- DamageMeter frame in Edit Mode.
-
 EnhancedInterface.EditModeCompanion.Register({
     filter = function(systemFrame)
-        -- DamageMeter is a singleton global (Enum.EditModeSystem.DamageMeter).
-        -- Guard against the optional dependency not being loaded.
         return DamageMeter ~= nil and systemFrame == DamageMeter
     end,
 
@@ -23,14 +14,7 @@ EnhancedInterface.EditModeCompanion.Register({
             set = function(value)
                 EnhancedInterface.db.objectivesTrackerDamageMeter.enabled = value
                 if EnhancedInterfaceObjectivesTrackerDamageMeterModule then
-                    -- Do NOT call ObjectiveTrackerManager:UpdateAll() directly here.
-                    -- This set callback fires from a plain addon SetScript("OnClick")
-                    -- handler — a fully tainted execution context.  Calling UpdateAll()
-                    -- from there runs the entire tracker layout chain (sort by uiOrder,
-                    -- LayoutContents, SetHeightModifier, UIParent_ManageFramePositions)
-                    -- with taint, causing "secret number value" errors downstream.
-                    -- Instead, signal the OnUpdate poller in DamageMeterEmbed to call
-                    -- UpdateAll() from the clean C++ game loop context.
+                    -- Set callbacks run tainted; defer UpdateAll via module poller.
                     EnhancedInterfaceObjectivesTrackerDamageMeterModule.RequestUpdateAll()
                 end
             end,

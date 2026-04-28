@@ -1,9 +1,3 @@
--- EnhancedInterface
--- modules/ObjectivesTracker/features/AutoCollapse/AutoCollapse.lua
---
--- Automatically collapses configured Objective Tracker sections when entering
--- any game instance. Restores each section to its pre-instance state on exit.
-
 local AutoCollapse = {}
 
 local SECTIONS = {
@@ -26,7 +20,6 @@ function AutoCollapse:OnZoneChanged(inInstance, instanceType)
     local enteringInstance = inInstance and INSTANCE_TYPES[instanceType]
 
     if enteringInstance and not wasInInstance then
-        -- Snapshot current collapse states, then collapse enabled sections
         for _, section in ipairs(SECTIONS) do
             local frame = _G[section.frameName]
             if frame then
@@ -39,7 +32,6 @@ function AutoCollapse:OnZoneChanged(inInstance, instanceType)
         wasInInstance = true
 
     elseif not enteringInstance and wasInInstance then
-        -- Restore each section to its pre-instance state
         for _, section in ipairs(SECTIONS) do
             local frame = _G[section.frameName]
             if frame then

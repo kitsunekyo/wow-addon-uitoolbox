@@ -1,10 +1,3 @@
--- EnhancedInterface
--- modules/ObjectivesTracker/features/AutoCollapse/EditModeIntegration.lua
---
--- Registers Auto-Collapse settings with the shared EditModeCompanionDialog so they
--- appear in the "EnhancedInterface" companion panel when the player selects the
--- Objective Tracker frame in Edit Mode.
-
 EnhancedInterface.EditModeCompanion.Register({
     filter = function(systemFrame)
         return systemFrame.system == Enum.EditModeSystem.ObjectiveTracker

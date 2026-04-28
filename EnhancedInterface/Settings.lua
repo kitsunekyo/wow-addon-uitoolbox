@@ -1,10 +1,5 @@
--- Enhanced Interface
--- Settings.lua: Registers the addon settings panel in the WoW Settings UI.
-
 local ADDON_NAME = "EnhancedInterface"
 
--- Creates a non-collapsible section header initializer.
---
 -- We deliberately avoid SettingsExpandableSectionMixin (collapsible sections) because
 -- that pattern requires writing CalculateHeight and OnExpandedChanged onto individual
 -- frame instances from addon (tainted) code.  Blizzard's UIParentPanelManager reads
@@ -21,12 +16,8 @@ local function createSection(name)
 end
 
 EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
-    -- Top-level category in the AddOns section of the Settings panel.
     local category = Settings.RegisterVerticalLayoutCategory("Enhanced Interface")
 
-    -- ----------------------------------------------------------------
-    -- Nameplates
-    -- ----------------------------------------------------------------
     Settings.RegisterInitializer(category, createSection("Nameplates"))
 
     local nameplateScaleSetting = Settings.RegisterProxySetting(
@@ -55,7 +46,6 @@ EventUtil.ContinueOnAddOnLoaded(ADDON_NAME, function()
         "Use this to fine-tune between Blizzard's preset steps (Small / Medium / Large …)."
     )
 
-    -- Always the last call -- registers the category into the Settings panel.
     Settings.RegisterAddOnCategory(category)
 
     EnhancedInterface.settingsCategory = category

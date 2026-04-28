@@ -1,10 +1,3 @@
--- EnhancedInterface
--- modules/PersonalResourceDisplay/features/PowerValueDisplay/EditModeIntegration.lua
---
--- Registers PowerValueDisplay settings with the shared EditModeCompanionDialog
--- so they appear in the "EnhancedInterface" companion panel when the player
--- selects the PersonalResourceDisplayFrame in Edit Mode.
-
 EnhancedInterface.EditModeCompanion.Register({
     filter = function(systemFrame)
         return systemFrame == PersonalResourceDisplayFrame

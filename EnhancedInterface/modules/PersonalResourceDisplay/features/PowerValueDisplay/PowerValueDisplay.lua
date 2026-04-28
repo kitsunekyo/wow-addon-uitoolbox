@@ -1,11 +1,3 @@
--- EnhancedInterface
--- modules/PersonalResourceDisplay/features/PowerValueDisplay/PowerValueDisplay.lua
---
--- Displays the player's current primary power value (mana, rage, energy, runic
--- power, focus, fury, etc.) as a number centered on the Personal Resource
--- Display power bar. Works for all classes — the power type is determined
--- dynamically via UnitPowerType each update.
---
 -- TAINT MODEL — read this before changing anything in this file
 -- ─────────────────────────────────────────────────────────────
 -- Common misconception: "OnUpdate handlers run from the C++ game loop, so
@@ -45,8 +37,11 @@
 
 local PowerValueDisplay = {}
 
-local powerLabel  = nil  -- the FontString we create once and reuse
-local hookedBars  = {}   -- set of class-nameplate power-bar instances we've hooked
+local powerLabel  = nil
+local hookedBars  = {}
+local pendingRefresh = false
+local pendingText = nil
+local pendingTextDirty = false
 
 local function IsEnabled()
     return EnhancedInterface.db
@@ -59,15 +54,12 @@ local function GetPowerBar()
     return frame and frame.PowerBar
 end
 
--- Create the label.  Idempotent — safe to call multiple times.
---
 -- IMPORTANT: this function MUST NOT call SetFont or SetFontObject with a
 -- custom Blizzard-side font object that hasn't already been measured.  We
 -- inherit everything from NumberFontNormal (a Blizzard font object loaded
 -- from FrameXML) via the template argument to CreateFontString.
 local function EnsureLabel()
     if powerLabel then
-        -- Re-parent to the current PowerBar in case Blizzard re-created it.
         local powerBar = GetPowerBar()
         if powerBar and powerLabel:GetParent() ~= powerBar then
             powerLabel:SetParent(powerBar)
@@ -82,44 +74,32 @@ local function EnsureLabel()
         return
     end
 
-    -- Inherit font, size, outline, shadow from NumberFontNormal.  No SetFont
-    -- call, no metrics cache write.
     powerLabel = powerBar:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
     powerLabel:SetPoint("CENTER", powerBar, "CENTER", 0, 0)
-    powerLabel:SetText("")
 end
 
--- Read the current power value and write it into the label.  Called only
--- from the `hooksecurefunc` callbacks on Blizzard's UpdatePower / UpdateMaxPower
--- methods, which run in a clean Blizzard-dispatched context.
-local function WritePowerText()
+local function QueuePowerTextRefresh()
     if not IsEnabled() then
-        if powerLabel then powerLabel:Hide() end
+        pendingText = nil
+        pendingTextDirty = true
         return
     end
-    EnsureLabel()
-    if not powerLabel then return end
-    powerLabel:Show()
+
     local powerType = UnitPowerType("player")
     local current   = UnitPower("player", powerType)
-    powerLabel:SetText(tostring(current))
+    pendingText = tostring(current)
+    pendingTextDirty = true
 end
-
--- ── Hook the class-nameplate power bar(s) ─────────────────────────────────
--- The class-nameplate bars (mana bar + class resource bar) are owned by
--- NamePlateDriverFrame.  Their `UpdatePower` / `UpdateMaxPower` methods are
--- invoked from Blizzard's own OnEvent, so hooksecurefunc callbacks fire
--- in a clean execution context — SetText is safe.
 
 local function HookBar(bar)
     if not bar or hookedBars[bar] then return end
     hookedBars[bar] = true
 
     if type(bar.UpdatePower) == "function" then
-        hooksecurefunc(bar, "UpdatePower", WritePowerText)
+        hooksecurefunc(bar, "UpdatePower", QueuePowerTextRefresh)
     end
     if type(bar.UpdateMaxPower) == "function" then
-        hooksecurefunc(bar, "UpdateMaxPower", WritePowerText)
+        hooksecurefunc(bar, "UpdateMaxPower", QueuePowerTextRefresh)
     end
 end
 
@@ -133,28 +113,14 @@ local function HookAllBars()
     end
 end
 
--- Public: called by SettingsUI / EditModeIntegration to apply enable/disable
--- changes immediately.  Property-only mutation on our own FontString — no
--- metrics-cache write — so even from a tainted UI callback context this is
--- safe.
 function PowerValueDisplay:SetEnabled(enabled)
     EnhancedInterface.db.powerValueDisplay.enabled = enabled
-    if enabled then
-        EnsureLabel()
-        HookAllBars()
-        WritePowerText()
-    elseif powerLabel then
-        powerLabel:Hide()
-    end
+    pendingRefresh = true
+    pendingTextDirty = true
 end
 
--- ── Setup hooks (capture bar swaps from spec / power-type changes) ────────
--- PRD setup hooks fire when Blizzard re-creates / re-parents the power bar
--- under the PRD frame.  We re-ensure our label is parented to the current
--- bar.  These hooks fire from Blizzard's own setup paths (clean context).
-
 local function OnPRDSetup()
-    EnsureLabel()
+    pendingRefresh = true
 end
 
 if PersonalResourceDisplayMixin then
@@ -162,25 +128,43 @@ if PersonalResourceDisplayMixin then
     hooksecurefunc(PersonalResourceDisplayMixin, "OnShow",        OnPRDSetup)
 end
 
--- ── Watcher: re-hook when Blizzard swaps the class-nameplate bar instance ─
--- UNIT_DISPLAYPOWER and PLAYER_TALENT_UPDATE indicate spec/power-type
--- changes that may swap the class-nameplate bar instance.  This watcher's
--- OnEvent runs tainted (we registered the events from addon code), but it
--- only calls hooksecurefunc and EnsureLabel — both are setup-time mutations
--- that do not touch the font-metrics cache.
-
 local watcher = CreateFrame("Frame")
 watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
 watcher:RegisterEvent("PLAYER_TALENT_UPDATE")
 watcher:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
 watcher:SetScript("OnEvent", function()
-    EnsureLabel()
+    pendingRefresh = true
+    pendingTextDirty = true
     HookAllBars()
 end)
 
--- Try at file load (NamePlateDriverFrame is a hard-loaded global).
-EnsureLabel()
+pendingRefresh = true
+pendingTextDirty = true
 HookAllBars()
 
--- Export module for use in EditModeIntegration
+local poller = CreateFrame("Frame")
+poller:SetScript("OnUpdate", function()
+    if pendingRefresh then
+        pendingRefresh = false
+        EnsureLabel()
+    end
+
+    if pendingTextDirty then
+        pendingTextDirty = false
+
+        if not IsEnabled() then
+            if powerLabel then
+                powerLabel:Hide()
+            end
+            return
+        end
+
+        EnsureLabel()
+        if not powerLabel then return end
+
+        powerLabel:Show()
+        powerLabel:SetText(pendingText or "")
+    end
+end)
+
 _G.EnhancedInterfacePowerValueDisplayModule = PowerValueDisplay
