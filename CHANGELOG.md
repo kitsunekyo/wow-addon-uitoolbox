@@ -1,3 +1,9 @@
+## [0.2.3] - 2026-04-30
+
+### Fixes
+- taint issue in EditModeCompanionDialog
+
+
 ## [0.2.2] - 2026-04-27
 
 ### Fixes
