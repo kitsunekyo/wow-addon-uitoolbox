@@ -21,6 +21,7 @@ end
 local dialog                 = nil
 local rowFrames              = {}
 local pendingSystemFrame     = nil
+local pendingHideDialog      = false
 local cachedBlizzDialogWidth = nil
 
 local function BuildRowFrame(index, parent)
@@ -170,8 +171,9 @@ local function RegisterHook()
         pendingSystemFrame = systemFrame
     end)
 
+    -- Hooks can run in tainted call chains; only set a flag here.
     hooksecurefunc(EditModeManagerFrame, "Hide", function()
-        if dialog then dialog:Hide() end
+        if dialog then pendingHideDialog = true end
     end)
 end
 
@@ -186,5 +188,9 @@ _initFrame:SetScript("OnUpdate", function()
         local sf = pendingSystemFrame
         pendingSystemFrame = nil
         UpdateCompanionDialog(sf)
+    end
+    if pendingHideDialog then
+        pendingHideDialog = false
+        if dialog then dialog:Hide() end
     end
 end)

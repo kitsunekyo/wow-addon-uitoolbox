@@ -354,8 +354,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     elseif event == "PLAYER_REGEN_ENABLED" then
         if pendingRestore then
             pendingRestore = false
-            restoringBars  = true
-            SharedBars:RestoreAllEnabled()
+            TriggerRestore()   -- defer via OnUpdate poller; do not call directly from event handler
         end
 
     elseif event == "ACTIONBAR_SLOT_CHANGED" then
