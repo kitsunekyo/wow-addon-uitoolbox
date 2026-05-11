@@ -69,21 +69,8 @@ The correct pattern to survive this:
 -- it when it later calls SetPoint/ClearAllPoints on the frame, tainting properties
 -- that Blizzard's layout system reads — causing "secret number/string value" errors.
 
--- CORRECT — flag + OnUpdate poller:
-local pendingReapply = false
-
-hooksecurefunc(EditModeManagerFrame, "ApplyLayoutToFrame", function(_, systemFrame)
-    if systemFrame == DamageMeter then
-        pendingReapply = true   -- plain boolean write; does NOT spread taint
-    end
-end)
-
-local reapplyPoller = CreateFrame("Frame")
-reapplyPoller:SetScript("OnUpdate", function()
-    if not pendingReapply then return end
-    pendingReapply = false
-    ReapplyPosition(frame, db)  -- safe: C++ game loop origin, clean context
-end)
+-- Do not mutate Blizzard-managed frame geometry from this hook.
+-- If this behavior is needed, design and live-test a dedicated taint-safe path.
 ```
 
 This is only relevant if you are **overriding the Edit Mode position** of the primary window. If

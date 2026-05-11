@@ -36,7 +36,7 @@ EnhancedInterface/
 - `Core.lua` exposes the global `EnhancedInterface` frame. All settings live on `EnhancedInterface.db` (backed by `EnhancedInterfaceDB` SavedVariablesPerCharacter).
 - Each feature is a single `.lua` file (sometimes paired with an `EditModeIntegration.lua`). New features follow the same pattern: one file per feature under `modules/<Area>/features/<FeatureName>/`.
 - After adding a new file, register it in `EnhancedInterface.toc`.
-- **MANDATORY — taint safety:** Never call any frame-mutating API (`SetHeight`, `SetWidth`, `SetSize`, `SetPoint`, `ClearAllPoints`, `SetScale`, `SetAlpha`, `Show`, `Hide`, `SetShown`, `SetFont`, `SetText`, `SetStatusBarTexture`, `PixelUtil.*`, `C_NamePlate.*`, etc.) directly from a `hooksecurefunc` callback, a `SetScript("OnEvent", ...)` handler, or an addon button's `OnClick`/`OnMouseDown` script. Instead, set a boolean flag and consume it from an `OnUpdate` poller (which fires from the C++ game loop — a clean, untainted context). See `knowledge/taint-and-secure-execution.md` for the full rationale and canonical pattern. Exception: direct calls from WoW Settings UI callbacks (`Settings.RegisterAddOnSetting` handlers) are safe.
+- **MANDATORY — taint safety:** Never call any frame-mutating API (`SetHeight`, `SetWidth`, `SetSize`, `SetPoint`, `ClearAllPoints`, `SetScale`, `SetAlpha`, `Show`, `Hide`, `SetShown`, `SetFont`, `SetText`, `SetStatusBarTexture`, `PixelUtil.*`, `C_NamePlate.*`, etc.) directly from a `hooksecurefunc` callback, a `SetScript("OnEvent", ...)` handler, or an addon button's `OnClick`/`OnMouseDown` script. Addon code is tainted, including addon `OnUpdate` handlers. Do not treat deferred addon callbacks as secure. Avoid mutating Blizzard-managed frames, shared Blizzard font objects, or global Blizzard tooltip state from addon callbacks. See `knowledge/taint-and-secure-execution.md` for current constraints.
 
 ## Development Environment
 
@@ -104,13 +104,10 @@ To release a new version to CurseForge:
 
 Reference documents accumulated during development. Consult these before researching topics they cover.
 
-- [Attaching Buttons to Blizzard Frames](knowledge/attaching-buttons-to-blizzard-frames.md) — how to inject custom buttons into Blizzard frames, atlas texture usage, accessing frame children, idempotency, and hooking late-created windows
 - [Edit Mode and Injected Buttons](knowledge/edit-mode-and-injected-buttons.md) — how Edit Mode dragging affects injected buttons, primary vs secondary damage meter windows, `ApplyLayoutToFrame` hook pattern
 - [Taint and Secure Execution](knowledge/taint-and-secure-execution.md) — how taint spreads, protected functions, `hooksecurefunc` vs `HookScript`, combat lockdown guards, `AllowedWhenUntainted` APIs, debugging taint errors, and EnhancedInterface-specific risk areas
-- [Tabs and Panels](knowledge/tabs-and-panels.md) — `PanelTabButtonTemplate`, `PanelTemplates_*` helpers, tab naming convention, scrollable panels, and `UIPanelScrollFrameTemplate`
-- [Buttons and Interactions](knowledge/buttons-and-interactions.md) — button templates, click scripts, enable/disable, atlas textures, tooltip-on-hover pattern, context menus via `MenuUtil`, and combat lockdown notes
-- [Custom Frames and Borders](knowledge/custom-frames-and-borders.md) — `BackdropTemplate`, `SetBackdrop`, pre-defined backdrop tables, standard frame templates, movable/resizable frames, frame strata, and saving position
-- [Text and Form Elements](knowledge/text-and-form-elements.md) — `FontString` font objects and methods, `EditBox` (InputBoxTemplate), `CheckButton` (checkbox), `Slider` (UISliderTemplateWithLabels), and the modern `Menu`/`DropdownButton` system
+- [Custom Textures](knowledge/custom-textures.md) — texture formats, size requirements, addon texture paths, and tinting notes
+- [Blizzard Button Templates](knowledge/blizzard-button-templates.md) — minimal reference for available button templates
 
 ## Tools
 

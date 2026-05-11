@@ -18,26 +18,15 @@
 --   • ADDON_ACTION_BLOCKED PerformEmote() (WorldMap show path)
 --
 -- Strategy used here:
---   1. The FontString is created at file-load time (a clean, Blizzard-driven
---      ADDON_LOADED dispatch context).  CreateFontString uses the third
---      argument NumberFontNormal so no SetFont metrics-cache write happens.
---   2. SetText is driven exclusively from `hooksecurefunc` callbacks on
---      Blizzard-owned methods on the class-nameplate power bar
---      (`UpdatePower`, `UpdateMaxPower`).  Those methods are invoked by
---      Blizzard's own OnEvent (Blizzard-registered for UNIT_POWER_FREQUENT /
---      UNIT_MAXPOWER on the bar instance), so our hook runs in a clean
---      execution context.  SetText from there does NOT taint the cache.
---   3. The class-nameplate power bar instance is swapped by Blizzard when
---      the player changes spec or display power (UNIT_DISPLAYPOWER).  We
---      re-hook the new bar from a watcher OnEvent.  Re-hooking only calls
---      `hooksecurefunc` (a setup-time mutation, doesn't touch frame state)
---      and a property-only Show()/Hide() and SetParent on our own
---      FontString, so even though the watcher is addon-registered, no
---      metrics-cache poisoning occurs.
+--   1. The label uses an addon-private font object instead of shared Blizzard
+--      font objects such as NumberFontNormal.
+--   2. Hooks and events only mark pending state; the actual label updates are
+--      coalesced by the poller below.
 
 local PowerValueDisplay = {}
 
 local powerLabel  = nil
+local powerFont   = nil
 local hookedBars  = {}
 local pendingRefresh = false
 local pendingText = nil
@@ -54,10 +43,18 @@ local function GetPowerBar()
     return frame and frame.PowerBar
 end
 
--- IMPORTANT: this function MUST NOT call SetFont or SetFontObject with a
--- custom Blizzard-side font object that hasn't already been measured.  We
--- inherit everything from NumberFontNormal (a Blizzard font object loaded
--- from FrameXML) via the template argument to CreateFontString.
+local function EnsureFont()
+    if powerFont then return powerFont end
+
+    powerFont = CreateFont("EnhancedInterfacePowerValueFont")
+    powerFont:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
+    powerFont:SetTextColor(1, 1, 1, 1)
+    powerFont:SetShadowColor(0, 0, 0, 1)
+    powerFont:SetShadowOffset(1, -1)
+
+    return powerFont
+end
+
 local function EnsureLabel()
     if powerLabel then
         local powerBar = GetPowerBar()
@@ -74,7 +71,8 @@ local function EnsureLabel()
         return
     end
 
-    powerLabel = powerBar:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+    powerLabel = powerBar:CreateFontString(nil, "OVERLAY")
+    powerLabel:SetFontObject(EnsureFont())
     powerLabel:SetPoint("CENTER", powerBar, "CENTER", 0, 0)
 end
 

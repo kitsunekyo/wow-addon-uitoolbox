@@ -23,6 +23,15 @@ local rowFrames              = {}
 local pendingSystemFrame     = nil
 local pendingHideDialog      = false
 local cachedBlizzDialogWidth = nil
+local companionTooltip       = nil
+
+local function GetTooltip()
+    if not companionTooltip then
+        companionTooltip = CreateFrame("GameTooltip", "EnhancedInterfaceEditModeCompanionTooltip", UIParent, "GameTooltipTemplate")
+    end
+
+    return companionTooltip
+end
 
 local function BuildRowFrame(index, parent)
     local f = CreateFrame("Frame", nil, parent)
@@ -55,15 +64,18 @@ local function BuildRowFrame(index, parent)
 
     cb:SetScript("OnEnter", function(btn)
         if not f.rowDef then return end
-        GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-        GameTooltip:SetText(f.rowDef.label, 1, 1, 1)
+        local tooltip = GetTooltip()
+        tooltip:SetOwner(btn, "ANCHOR_RIGHT")
+        tooltip:SetText(f.rowDef.label, 1, 1, 1)
         if f.rowDef.tooltip then
-            GameTooltip:AddLine(f.rowDef.tooltip, nil, nil, nil, true)
+            tooltip:AddLine(f.rowDef.tooltip, nil, nil, nil, true)
         end
-        GameTooltip:Show()
+        tooltip:Show()
     end)
     cb:SetScript("OnLeave", function()
-        GameTooltip:Hide()
+        if companionTooltip then
+            companionTooltip:Hide()
+        end
     end)
 
     f:Hide()
