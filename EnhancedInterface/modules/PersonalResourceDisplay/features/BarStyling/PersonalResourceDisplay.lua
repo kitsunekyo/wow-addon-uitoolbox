@@ -5,10 +5,13 @@ local BAR_TEXTURE = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill"
 local BAR_HEIGHT = 10
 
 local hooksInstalled = false
+local subFrameHooksInstalled = false
 local applyingStyles = false
 
 local healthOverlay = nil
+local healthOverlayBg = nil
 local powerOverlay = nil
+local powerOverlayBg = nil
 local powerOverlayBorder = nil
 
 local CLASS_RESOURCE_FRAMES = {
@@ -84,6 +87,10 @@ local function EnsureOverlayBars()
     healthOverlay:SetValue(1)
     healthOverlay:Hide()
 
+    healthOverlayBg = healthOverlay:CreateTexture(nil, "BACKGROUND")
+    healthOverlayBg:SetAllPoints(healthOverlay)
+    healthOverlayBg:SetColorTexture(0, 0, 0, 0.5)
+
     powerOverlay = CreateFrame("StatusBar", nil, frame)
     powerOverlay:SetStatusBarTexture(BAR_TEXTURE)
     powerOverlay:SetHeight(BAR_HEIGHT)
@@ -92,11 +99,39 @@ local function EnsureOverlayBars()
     powerOverlay:SetValue(1)
     powerOverlay:Hide()
 
-    powerOverlayBorder = powerOverlay:CreateTexture(nil, "BACKGROUND", nil, -8)
-    powerOverlayBorder:SetColorTexture(0, 0, 0, 0.5)
-    powerOverlayBorder:SetPoint("BOTTOMLEFT", powerOverlay, "TOPLEFT")
-    powerOverlayBorder:SetPoint("BOTTOMRIGHT", powerOverlay, "TOPRIGHT")
-    powerOverlayBorder:SetHeight(1)
+    powerOverlayBg = powerOverlay:CreateTexture(nil, "BACKGROUND")
+    powerOverlayBg:SetAllPoints(powerOverlay)
+    powerOverlayBg:SetColorTexture(0, 0, 0, 0.5)
+
+    powerOverlayBorder = CreateFrame("Frame", nil, powerOverlay)
+    powerOverlayBorder:SetFrameLevel(powerOverlay:GetFrameLevel() + 2)
+
+    local function makeEdge()
+        local tex = powerOverlayBorder:CreateTexture(nil, "OVERLAY")
+        tex:SetColorTexture(0, 0, 0, 0.5)
+        return tex
+    end
+
+    local top = makeEdge()
+    top:SetPoint("BOTTOMLEFT", powerOverlay, "TOPLEFT", -1, 0)
+    top:SetPoint("BOTTOMRIGHT", powerOverlay, "TOPRIGHT", 1, 0)
+    top:SetHeight(1)
+
+    local bottom = makeEdge()
+    bottom:SetPoint("TOPLEFT", powerOverlay, "BOTTOMLEFT", -1, 0)
+    bottom:SetPoint("TOPRIGHT", powerOverlay, "BOTTOMRIGHT", 1, 0)
+    bottom:SetHeight(1)
+
+    local left = makeEdge()
+    left:SetPoint("TOPLEFT", powerOverlay, "TOPLEFT", -1, 1)
+    left:SetPoint("BOTTOMLEFT", powerOverlay, "BOTTOMLEFT", -1, -1)
+    left:SetWidth(1)
+
+    local right = makeEdge()
+    right:SetPoint("TOPRIGHT", powerOverlay, "TOPRIGHT", 1, 1)
+    right:SetPoint("BOTTOMRIGHT", powerOverlay, "BOTTOMRIGHT", 1, -1)
+    right:SetWidth(1)
+
     powerOverlayBorder:Hide()
 end
 
@@ -148,21 +183,22 @@ local function ApplyHealthStyle(frame)
     if not frame or not frame.HealthBarsContainer then return end
 
     local hideHealth = IsHideHealthBarEnabled()
-    local restyle = IsRestyleBarsEnabled()
+    local active = hideHealth or IsRestyleBarsEnabled()
 
     EnsureOverlayBars()
 
-    if hideHealth then
-        frame.HealthBarsContainer:Hide()
-        if healthOverlay then healthOverlay:Hide() end
-    elseif restyle then
+    if active then
         frame.HealthBarsContainer:Hide()
         if healthOverlay then
-            healthOverlay:ClearAllPoints()
-            healthOverlay:SetPoint("TOPLEFT", frame, "TOPLEFT")
-            healthOverlay:SetPoint("TOPRIGHT", frame, "TOPRIGHT")
-            healthOverlay:Show()
-            UpdateHealthValues()
+            if hideHealth then
+                healthOverlay:Hide()
+            else
+                healthOverlay:ClearAllPoints()
+                healthOverlay:SetPoint("TOPLEFT", frame, "TOPLEFT")
+                healthOverlay:SetPoint("TOPRIGHT", frame, "TOPRIGHT")
+                healthOverlay:Show()
+                UpdateHealthValues()
+            end
         end
     else
         frame.HealthBarsContainer:Show()
@@ -174,12 +210,12 @@ local function ApplyPowerStyle(frame)
     local powerBar = frame and frame.PowerBar
     if not powerBar then return end
 
-    local restyle = IsRestyleBarsEnabled()
     local hideHealth = IsHideHealthBarEnabled()
+    local active = hideHealth or IsRestyleBarsEnabled()
 
     EnsureOverlayBars()
 
-    if restyle then
+    if active then
         powerBar:Hide()
         if powerOverlay then
             powerOverlay:ClearAllPoints()
@@ -191,12 +227,7 @@ local function ApplyPowerStyle(frame)
                 powerOverlay:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -BAR_HEIGHT)
             end
 
-            if hideHealth then
-                powerOverlayBorder:Show()
-            else
-                powerOverlayBorder:Hide()
-            end
-
+            powerOverlayBorder:Show()
             powerOverlay:Show()
             UpdatePowerValues()
         end
@@ -232,6 +263,8 @@ function PersonalResourceDisplay:ApplyToCurrentPlayerNameplate()
     local frame = GetFrame()
     if not frame then return end
 
+    self:InstallSubFrameHooks()
+
     applyingStyles = true
     ApplyHealthStyle(frame)
     ApplyPowerStyle(frame)
@@ -245,32 +278,54 @@ function PersonalResourceDisplay:TryInstallHooks()
 
     if not PersonalResourceDisplayMixin then return end
 
-    hooksecurefunc(PersonalResourceDisplayMixin, "OnShow", function()
-        pendingApply = true
-    end)
-
-    hooksecurefunc(PersonalResourceDisplayMixin, "SetupHealthBar", function()
-        pendingApply = true
-    end)
-
-    hooksecurefunc(PersonalResourceDisplayMixin, "SetupPowerBar", function()
-        pendingApply = true
-    end)
-
-    hooksecurefunc(PersonalResourceDisplayMixin, "UpdateShownState", function()
-        pendingApply = true
-    end)
-
-    local frame = GetFrame()
-    if frame and frame.HealthBarsContainer then
-        hooksecurefunc(frame.HealthBarsContainer, "Show", function()
-            if IsHideHealthBarEnabled() then
-                pendingApply = true
-            end
-        end)
+    local function HideBlizzardBars()
+        local frame = GetFrame()
+        if not frame then return end
+        if frame.HealthBarsContainer then frame.HealthBarsContainer:Hide() end
+        if frame.PowerBar then frame.PowerBar:Hide() end
     end
 
+    local function OnBlizzardBarEvent()
+        if IsHideHealthBarEnabled() or IsRestyleBarsEnabled() then
+            HideBlizzardBars()
+            pendingApply = true
+        end
+    end
+
+    hooksecurefunc(PersonalResourceDisplayMixin, "OnShow", OnBlizzardBarEvent)
+    hooksecurefunc(PersonalResourceDisplayMixin, "SetupHealthBar", OnBlizzardBarEvent)
+    hooksecurefunc(PersonalResourceDisplayMixin, "SetupPowerBar", OnBlizzardBarEvent)
+    hooksecurefunc(PersonalResourceDisplayMixin, "UpdateShownState", OnBlizzardBarEvent)
+
+    PersonalResourceDisplay:InstallSubFrameHooks()
+
     hooksInstalled = true
+end
+
+function PersonalResourceDisplay:InstallSubFrameHooks()
+    if subFrameHooksInstalled then return end
+
+    local frame = GetFrame()
+    if not frame then return end
+
+    local function OnBlizzardBarEvent()
+        if IsHideHealthBarEnabled() or IsRestyleBarsEnabled() then
+            local f = GetFrame()
+            if not f then return end
+            if f.HealthBarsContainer then f.HealthBarsContainer:Hide() end
+            if f.PowerBar then f.PowerBar:Hide() end
+            pendingApply = true
+        end
+    end
+
+    if frame.HealthBarsContainer then
+        hooksecurefunc(frame.HealthBarsContainer, "Show", OnBlizzardBarEvent)
+    end
+
+    if frame.PowerBar then
+        hooksecurefunc(frame.PowerBar, "Show", OnBlizzardBarEvent)
+        subFrameHooksInstalled = true
+    end
 end
 
 function PersonalResourceDisplay:RequestApply()
