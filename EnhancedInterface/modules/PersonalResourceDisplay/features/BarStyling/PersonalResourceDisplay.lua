@@ -219,8 +219,8 @@ local function ApplyPowerStyle(frame)
         powerBar:Hide()
         if powerOverlay then
             powerOverlay:ClearAllPoints()
-            powerOverlay:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT")
-            powerOverlay:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT")
+            powerOverlay:SetPoint("TOPLEFT", powerBar, "TOPLEFT")
+            powerOverlay:SetPoint("TOPRIGHT", powerBar, "TOPRIGHT")
 
             powerOverlayBorder:Show()
             powerOverlay:Show()
