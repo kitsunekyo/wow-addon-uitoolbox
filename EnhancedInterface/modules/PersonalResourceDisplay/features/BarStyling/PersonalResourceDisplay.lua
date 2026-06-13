@@ -194,8 +194,8 @@ local function ApplyHealthStyle(frame)
                 healthOverlay:Hide()
             else
                 healthOverlay:ClearAllPoints()
-                healthOverlay:SetPoint("TOPLEFT", frame, "TOPLEFT")
-                healthOverlay:SetPoint("TOPRIGHT", frame, "TOPRIGHT")
+                healthOverlay:SetPoint("BOTTOMLEFT", powerOverlay, "TOPLEFT")
+                healthOverlay:SetPoint("BOTTOMRIGHT", powerOverlay, "TOPRIGHT")
                 healthOverlay:Show()
                 UpdateHealthValues()
             end
@@ -219,13 +219,8 @@ local function ApplyPowerStyle(frame)
         powerBar:Hide()
         if powerOverlay then
             powerOverlay:ClearAllPoints()
-            if hideHealth then
-                powerOverlay:SetPoint("TOPLEFT", frame, "TOPLEFT")
-                powerOverlay:SetPoint("TOPRIGHT", frame, "TOPRIGHT")
-            else
-                powerOverlay:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -BAR_HEIGHT)
-                powerOverlay:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -BAR_HEIGHT)
-            end
+            powerOverlay:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT")
+            powerOverlay:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT")
 
             powerOverlayBorder:Show()
             powerOverlay:Show()
