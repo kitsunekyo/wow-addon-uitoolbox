@@ -37,14 +37,13 @@ EnhancedInterface.EditModeCompanion.Register({
         },
         {
             type    = "checkbox",
-            label   = "Restyle bars",
-            tooltip = "Applies a clean look to both bars: uses the raid-frame health fill texture, " ..
-                      "reduces height to 10 px, and replaces the rounded border with a thin 1 px pixel border.",
+            label   = "Compact bars",
+            tooltip = "Reduces bar height to 10 px with a thin pixel border.",
             get = function()
-                return EnhancedInterface.db.personalResourceDisplay.restylePowerBar
+                return EnhancedInterface.db.personalResourceDisplay.compactBars
             end,
             set = function(value)
-                EnhancedInterface.db.personalResourceDisplay.restylePowerBar = value
+                EnhancedInterface.db.personalResourceDisplay.compactBars = value
                 DeferApply()
             end,
         },

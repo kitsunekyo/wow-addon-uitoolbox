@@ -18,7 +18,7 @@ local DEFAULTS = {
     personalResourceDisplay = {
         hideHealthBar      = false,
         hideClassResources = false,
-        restylePowerBar    = false,
+        compactBars        = false,
         hideWhenMounted    = false,
     },
     powerValueDisplay = {
@@ -71,6 +71,12 @@ function EnhancedInterface:ADDON_LOADED(addonName)
 
     if EnhancedInterfaceDB.powerValueDisplay == nil and EnhancedInterfaceDB.runicPowerDisplay ~= nil then
         EnhancedInterfaceDB.powerValueDisplay = CopyTable(EnhancedInterfaceDB.runicPowerDisplay)
+    end
+
+    local prd = EnhancedInterfaceDB.personalResourceDisplay
+    if prd and prd.restylePowerBar ~= nil then
+        prd.compactBars = prd.restylePowerBar
+        prd.restylePowerBar = nil
     end
 
     ApplyDefaults(EnhancedInterfaceDB, DEFAULTS)
